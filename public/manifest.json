@@ -1,0 +1,18 @@
+{
+  "name": "Nexora Tools - All-in-One Utility Hub",
+  "short_name": "Nexora",
+  "description": "Kumpulan tools serbaguna cepat, ringan, dan bertenaga AI.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
