@@ -6,9 +6,10 @@ const nextConfig: NextConfig = {
       // Matikan cache disk agar tidak memicu warning di memori HP
       config.cache = false;
       config.watchOptions = {
-        ignored: ['**/node_modules/**', '/data/**', '/storage/**'],
+        ignored: ["**/node_modules/**", "/data/**", "/storage/**"],
       };
     }
+
     return config;
   },
 };

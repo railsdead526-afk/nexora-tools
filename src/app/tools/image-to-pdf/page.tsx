@@ -114,7 +114,8 @@ export default function ImageToPdfPage() {
       }
 
       const pdfBytes = await pdfDoc.save();
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const pdfBuffer = new Uint8Array(pdfBytes).buffer;
+      const blob = new Blob([pdfBuffer], { type: 'application/pdf' });
       setPdfUrl(URL.createObjectURL(blob));
     } catch (err: any) {
       console.error(err);

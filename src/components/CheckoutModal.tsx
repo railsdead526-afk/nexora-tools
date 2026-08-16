@@ -7,7 +7,6 @@ import { Crown, CheckCircle2, X, MessageCircle, ShieldCheck } from 'lucide-react
 
 export default function CheckoutModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { data: session } = useSession();
-  const { upgradeToPro } = useUser();
   const [voucher, setVoucher] = useState('');
   const [success, setSuccess] = useState(false);
 
@@ -25,7 +24,6 @@ export default function CheckoutModal({ isOpen, onClose }: { isOpen: boolean; on
   const handleVoucher = (e: React.FormEvent) => {
     e.preventDefault();
     if (voucher.trim().toUpperCase() === 'NEXORAPRO' || voucher.trim().toUpperCase() === 'AKTIF') {
-      upgradeToPro();
       setSuccess(true);
     } else {
       alert('Kode aktivasi salah. Silakan kirim bukti transfer ke WhatsApp admin untuk mendapatkan kode.');

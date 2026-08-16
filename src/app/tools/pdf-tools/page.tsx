@@ -31,7 +31,8 @@ export default function PdfToolsPage() {
       }
 
       const pdfBytes = await mergedPdf.save();
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const pdfBuffer = new Uint8Array(pdfBytes).buffer;
+      const blob = new Blob([pdfBuffer], { type: 'application/pdf' });
       setMergedPdfUrl(URL.createObjectURL(blob));
     } catch (error) {
       console.error('Gagal menggabungkan PDF:', error);
