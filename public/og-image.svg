@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <!-- Latar Belakang Hitam Pekat -->
+  <rect width="1200" height="630" fill="#020617"/>
+  
+  <!-- Aura Cahaya Mewah -->
+  <circle cx="600" cy="200" r="350" fill="#4f46e5" opacity="0.18" filter="blur(80px)"/>
+  <circle cx="750" cy="300" r="250" fill="#f59e0b" opacity="0.12" filter="blur(80px)"/>
+  
+  <!-- Border Kartu -->
+  <rect x="40" y="40" width="1120" height="550" rx="36" fill="none" stroke="#1e293b" stroke-width="2"/>
+  
+  <!-- Logo Bintang Emas -->
+  <g transform="translate(100, 110)">
+    <rect width="90" height="90" rx="24" fill="#0b0f19" stroke="#334155" stroke-width="2"/>
+    <path d="M45 18 L51 37 L70 42 L55 54 L58 72 L45 60 L32 72 L35 54 L20 42 L39 37 Z" fill="url(#goldGrad)"/>
+  </g>
+  
+  <!-- Nama Brand -->
+  <text x="215" y="172" font-family="system-ui, -apple-system, sans-serif" font-size="52" font-weight="900" fill="#ffffff" letter-spacing="2">
+    NEXORA<tspan fill="#3b82f6">.</tspan>
+  </text>
+  
+  <!-- Badge Kategori -->
+  <rect x="100" y="240" width="220" height="40" rx="20" fill="#4f46e5" fill-opacity="0.15" stroke="#4f46e5" stroke-opacity="0.4"/>
+  <text x="210" y="266" font-family="system-ui, sans-serif" font-size="16" font-weight="800" fill="#818cf8" text-anchor="middle">
+    ✨ ALL-IN-ONE TOOLS HUB
+  </text>
+  
+  <!-- Judul Utama -->
+  <text x="100" y="345" font-family="system-ui, sans-serif" font-size="44" font-weight="900" fill="#ffffff">
+    Koleksi Tools Cerdas &amp; Cepat
+  </text>
+  <text x="100" y="405" font-family="system-ui, sans-serif" font-size="44" font-weight="900" fill="url(#goldGrad)">
+    Gratis Tanpa Batas &amp; Bertenaga AI
+  </text>
+  
+  <!-- Deskripsi Tools -->
+  <text x="100" y="470" font-family="system-ui, sans-serif" font-size="22" font-weight="500" fill="#94a3b8">
+    Potong Video Shorts 9:16 • Foto ke PDF Resmi • Naskah TikTok • QR Code • Kompres Foto
+  </text>
+  
+  <!-- Footer Tag -->
+  <text x="100" y="530" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#64748b">
+    🔒 100% Aman di Browser • Bebas Akses Kapan Saja
+  </text>
+
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+  </defs>
+</svg>

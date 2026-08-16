@@ -16,12 +16,61 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'Nexora Tools - All-in-One Online Tools Hub',
-  description: 'Kumpulan tools serbaguna cepat, ringan, dan bertenaga AI.',
+  metadataBase: new URL('https://nexora-tools.vercel.app'),
+  title: {
+    default: 'Nexora Tools - All-in-One Online Tools Hub',
+    template: '%s | Nexora Tools',
+  },
+  description: 'Kumpulan tools serbaguna gratis berbasis browser & tools AI premium untuk produktivitas maksimal. Potong video shorts, ubah foto ke PDF resmi, generator Gmail, dan QR Code.',
+  keywords: [
+    'tools online gratis',
+    'potong video shorts',
+    'ai auto clipper indonesia',
+    'foto ke pdf resmi',
+    'gmail alias generator',
+    'uuid generator minecraft',
+    'kompres foto',
+    'qr code generator',
+    'nexora tools'
+  ],
+  authors: [{ name: 'Nexora Team' }],
+  creator: 'Nexora',
+  publisher: 'Nexora Tools',
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  openGraph: {
+    title: 'Nexora Tools - All-in-One Online Tools Hub',
+    description: 'Kumpulan tools serbaguna cepat, ringan, dan bertenaga AI. Gratis & siap pakai langsung di browser!',
+    url: 'https://nexora-tools.vercel.app',
+    siteName: 'Nexora Tools',
+    images: [
+      {
+        url: '/og-image.svg',
+        width: 1200,
+        height: 630,
+        alt: 'Nexora Tools Preview Banner',
+      },
+    ],
+    locale: 'id_ID',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Nexora Tools - All-in-One Online Tools Hub',
+    description: 'Kumpulan tools serbaguna gratis berbasis browser & AI premium.',
+    images: ['/og-image.svg'],
+  },
   manifest: '/manifest.json',
   icons: {
     icon: '/icon.svg',
     apple: '/icon.svg',
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 
