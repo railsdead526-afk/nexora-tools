@@ -1,17 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { TOOLS_DATA } from '@/config/tools';
 import { 
   Search, ArrowRight, Sparkles, 
   Video, PenTool, Mail, KeyRound, FileStack, ImageDown, 
-  Files, QrCode, CaseSensitive 
+  Files, QrCode, CaseSensitive, Download 
 } from 'lucide-react';
 
 export default function HomePage() {
+  const [mounted, setMounted] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const categories = ['All', 'Video', 'Text', 'PDF', 'Image', 'Generator'];
 
@@ -28,8 +33,10 @@ export default function HomePage() {
         return <Video className="w-5 h-5 text-amber-400" />;
       case 'pen':
         return <PenTool className="w-5 h-5 text-orange-400" />;
+      case 'download-video':
+        return <Download className="w-5 h-5 text-red-400" />;
       case 'gmail':
-        return <Mail className="w-5 h-5 text-red-400" />;
+        return <Mail className="w-5 h-5 text-pink-400" />;
       case 'key':
         return <KeyRound className="w-5 h-5 text-yellow-400" />;
       case 'pdf-img':
@@ -47,13 +54,19 @@ export default function HomePage() {
     }
   };
 
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="relative overflow-hidden pb-20 min-h-screen bg-slate-950">
-      {/* Ambient Glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[280px] bg-gradient-to-tr from-indigo-600/15 via-purple-600/10 to-amber-500/10 blur-[100px] pointer-events-none -z-10" />
 
       <div className="max-w-6xl mx-auto px-4 pt-8 md:pt-16 space-y-8 md:space-y-12">
-        {/* Header Hero */}
         <div className="text-center space-y-4 max-w-2xl mx-auto">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold">
             <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Nexora Online Utilities
@@ -75,14 +88,14 @@ export default function HomePage() {
             <Search className="absolute left-4 top-5.5 h-4 w-4 text-slate-500" />
             <input
               type="text"
-              placeholder="Cari tool... (contoh: pdf, potong video, gmail, qr)"
+              placeholder="Cari tool... (contoh: download video, pdf, gmail, qr)"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-11 pr-4 py-3 bg-slate-900/90 border border-slate-800 focus:border-indigo-500 rounded-2xl focus:outline-none text-xs md:text-sm text-white placeholder-slate-500 shadow-xl transition-all"
             />
           </div>
 
-          {/* Category Pills */}
+          {/* Category Filter Pills */}
           <div className="flex flex-wrap justify-center gap-1.5 md:gap-2 pt-1">
             {categories.map((cat) => (
               <button
@@ -121,7 +134,7 @@ export default function HomePage() {
                     </span>
                   ) : (
                     <span className="text-[9px] font-semibold px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700/40">
-                      FREE
+                      {tool.badge || 'FREE'}
                     </span>
                   )}
                 </div>

@@ -5,33 +5,43 @@ export interface Tool {
   category: 'Image' | 'Text' | 'PDF' | 'Generator' | 'Video';
   slug: string;
   isPremium: boolean;
-  iconName: 'video' | 'pen' | 'gmail' | 'key' | 'pdf-img' | 'compress' | 'merge' | 'qr' | 'case';
+  iconName: 'pen' | 'download-video' | 'pdf-img' | 'gmail' | 'key' | 'compress' | 'merge' | 'qr' | 'case';
   badge?: string;
 }
 
 export const TOOLS_DATA: Tool[] = [
   {
     id: '1',
-    name: 'Potong Video Shorts',
-    description: 'Potong video YouTube panjang jadi klip vertikal 9:16 siap posting TikTok/Reels.',
-    category: 'Video',
-    slug: 'auto-clipper',
-    isPremium: true,
-    iconName: 'video',
-    badge: 'PRO',
-  },
-  {
-    id: '2',
     name: 'Naskah & Hook TikTok',
     description: 'Bikin skrip video 30 detik, hook clickbait, & caption jualan affiliate otomatis.',
     category: 'Text',
     slug: 'ai-copywriter',
     isPremium: true,
     iconName: 'pen',
-    badge: 'PRO',
+    badge: 'PRO / AI',
+  },
+  {
+    id: '2',
+    name: 'Download TikTok & YouTube',
+    description: 'Unduh video YouTube & TikTok tanpa watermark kualitas HD hingga 4K jernih.',
+    category: 'Video',
+    slug: 'video-downloader',
+    isPremium: false,
+    iconName: 'download-video',
+    badge: 'HOT',
   },
   {
     id: '3',
+    name: 'Foto ke PDF Resmi',
+    description: 'Ubah kumpulan foto KTP, Ijazah & CV jadi 1 file PDF ukuran A4.',
+    category: 'PDF',
+    slug: 'image-to-pdf',
+    isPremium: false,
+    iconName: 'pdf-img',
+    badge: 'POPULAR',
+  },
+  {
+    id: '4',
     name: 'Gmail Alias Maker',
     description: 'Bikin puluhan email baru dari 1 akun Gmail pakai trik titik & plus.',
     category: 'Generator',
@@ -40,23 +50,13 @@ export const TOOLS_DATA: Tool[] = [
     iconName: 'gmail',
   },
   {
-    id: '4',
+    id: '5',
     name: 'UUID & Add-on Maker',
     description: 'Buat kode UUID unik & template manifest.json untuk Add-on Minecraft.',
     category: 'Generator',
     slug: 'uuid-generator',
     isPremium: false,
     iconName: 'key',
-  },
-  {
-    id: '5',
-    name: 'Foto ke PDF Resmi',
-    description: 'Ubah kumpulan foto KTP, Ijazah & CV jadi 1 file PDF ukuran A4.',
-    category: 'PDF',
-    slug: 'image-to-pdf',
-    isPremium: false,
-    iconName: 'pdf-img',
-    badge: 'POPULAR',
   },
   {
     id: '6',
@@ -88,7 +88,7 @@ export const TOOLS_DATA: Tool[] = [
   {
     id: '9',
     name: 'Format Huruf & Kata',
-    description: 'Ubah teks jadi huruf besar/kecil & hitung jumlah kata otomatis.',
+    description: 'Ubah teks jadi huruf besar/kecil & hitung kata/karakter secara instan.',
     category: 'Text',
     slug: 'case-converter',
     isPremium: false,
