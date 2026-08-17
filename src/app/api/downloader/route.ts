@@ -28,6 +28,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Downloader sedang dinonaktifkan sampai worker produksi dikonfigurasi.' }, { status: 503 });
     }
 
+    let parsedWorkerUrl: URL;
+    try {
+      parsedWorkerUrl = new URL(workerUrl);
+      if (parsedWorkerUrl.protocol !== 'https:' && parsedWorkerUrl.hostname !== 'localhost') {
+        throw new Error('Worker harus menggunakan HTTPS.');
+      }
+    } catch {
+      return NextResponse.json({ error: 'Konfigurasi downloader worker tidak valid.' }, { status: 503 });
+    }
+
     const body = await request.json();
     const action = String(body?.action || '');
     const url = String(body?.url || '').trim();
@@ -66,7 +76,7 @@ export async function POST(request: Request) {
       quotaConsumed = true;
     }
 
-    const response = await fetch(workerUrl, {
+    const response = await fetch(parsedWorkerUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -74,7 +84,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({ action, url, resolution, isAudio }),
       cache: 'no-store',
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(110_000),
     });
 
     const data = await response.json().catch(() => ({ error: 'Worker mengembalikan respons yang tidak valid.' }));
