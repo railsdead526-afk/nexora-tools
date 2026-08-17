@@ -1,36 +1,32 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import { getUserFromRequest } from '@/lib/auth/require-user';
+import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
-const filePath = path.join(process.cwd(), 'feedbacks.json');
+const ALLOWED_TYPES = new Set(['Bug', 'Saran', 'Pertanyaan']);
 
-export async function POST(req: Request) {
+export async function POST(request: Request) {
   try {
-    const { type, message, email } = await req.json();
+    const body = await request.json();
+    const type = ALLOWED_TYPES.has(body?.type) ? body.type : 'Saran';
+    const message = String(body?.message || '').trim();
 
-    if (!message) {
-      return NextResponse.json({ error: 'Pesan tidak boleh kosong' }, { status: 400 });
+    if (!message || message.length > 3000) {
+      return NextResponse.json({ error: 'Pesan wajib diisi dan maksimal 3000 karakter.' }, { status: 400 });
     }
 
-    let feedbacks = [];
-    if (fs.existsSync(filePath)) {
-      try {
-        feedbacks = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-      } catch (e) {}
-    }
-
-    feedbacks.push({
-      id: Date.now(),
-      type: type || 'Saran',
+    const user = await getUserFromRequest(request);
+    const supabase = createSupabaseAdminClient();
+    const { error } = await supabase.from('feedback').insert({
+      user_id: user?.id || null,
+      email: user?.email || null,
+      type,
       message,
-      email: email || 'Anonim / Belum Login',
-      createdAt: new Date().toLocaleString('id-ID'),
     });
 
-    fs.writeFileSync(filePath, JSON.stringify(feedbacks, null, 2));
-
-    return NextResponse.json({ success: true, message: 'Laporan berhasil dikirim ke Admin!' });
+    if (error) throw error;
+    return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: 'Gagal mengirim laporan' }, { status: 500 });
+    console.error('Feedback error:', error);
+    return NextResponse.json({ error: 'Gagal menyimpan laporan.' }, { status: 500 });
   }
 }

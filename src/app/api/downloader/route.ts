@@ -1,144 +1,73 @@
 import { NextResponse } from 'next/server';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import fs from 'fs';
-import path from 'path';
+import { getUserFromRequest } from '@/lib/auth/require-user';
+import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
-const execAsync = promisify(exec);
+const ACTIONS = new Set(['get_info', 'download_file']);
+const RESOLUTIONS = new Set(['360', '720', '1080', '1440', '2160', 'mp3']);
+const PRO_RESOLUTIONS = new Set(['1080', '1440', '2160']);
 
-export async function POST(req: Request) {
+function isAllowedVideoUrl(input: string) {
   try {
-    const { action, url, resolution = '720', isAudio = false } = await req.json();
-
-    if (!url) {
-      return NextResponse.json({ error: 'Link URL tidak boleh kosong' }, { status: 400 });
-    }
-
-    const cleanUrl = url.trim().split('&si=')[0];
-    const isTikTok = /tiktok\.com|douyin\.com/i.test(cleanUrl);
-
-    // ================= 1. TIKTOK TURBO ENGINE =================
-    if (isTikTok) {
-      if (action === 'get_info') {
-        try {
-          const res = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(cleanUrl)}`, {
-            headers: { 'User-Agent': 'Mozilla/5.0' },
-          });
-          const json = await res.json();
-
-          if (json.code === 0 && json.data) {
-            return NextResponse.json({
-              success: true,
-              isTikTok: true,
-              title: json.data.title || 'TikTok Video (Tanpa Watermark)',
-              thumbnail: json.data.cover || json.data.origin_cover || '',
-              duration: `${json.data.duration || 0} Detik`,
-              uploader: `@${json.data.author?.unique_id || json.data.author?.nickname || 'creator'}`,
-            });
-          }
-        } catch (e) {}
-        return NextResponse.json({ error: 'Gagal mengambil video TikTok. Pastikan video publik.' }, { status: 400 });
-      }
-
-      if (action === 'download_file') {
-        const res = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(cleanUrl)}`, {
-          headers: { 'User-Agent': 'Mozilla/5.0' },
-        });
-        const json = await res.json();
-
-        if (json.code === 0 && json.data) {
-          const targetUrl = isAudio 
-            ? json.data.music 
-            : (resolution === '1080' || resolution === '1440' || resolution === '2160' ? (json.data.hdplay || json.data.play) : json.data.play);
-
-          const timestamp = Date.now();
-          const ext = isAudio ? 'mp3' : 'mp4';
-          const filename = `tiktok_nowm_${timestamp}.${ext}`;
-          const outputPath = path.join(process.cwd(), 'public/outputs', filename);
-
-          const mediaRes = await fetch(targetUrl);
-          const arrayBuffer = await mediaRes.arrayBuffer();
-          fs.writeFileSync(outputPath, Buffer.from(arrayBuffer));
-
-          return NextResponse.json({
-            success: true,
-            downloadUrl: `/api/downloader?file=${filename}`,
-            filename,
-          });
-        }
-        return NextResponse.json({ error: 'Gagal mengunduh file TikTok.' }, { status: 400 });
-      }
-    }
-
-    // ================= 2. YOUTUBE TURBO MULTI-THREAD ENGINE =================
-    if (action === 'get_info') {
-      const infoCmd = `yt-dlp --dump-json --no-playlist --js-runtimes node --extractor-args "youtube:player_client=ios,android,web" "${cleanUrl}"`;
-      const { stdout } = await execAsync(infoCmd);
-      const videoInfo = JSON.parse(stdout);
-
-      return NextResponse.json({
-        success: true,
-        isTikTok: false,
-        title: videoInfo.title || 'Video YouTube',
-        thumbnail: videoInfo.thumbnail || '',
-        duration: videoInfo.duration_string || 'N/A',
-        uploader: videoInfo.uploader || videoInfo.channel || 'Kreator',
-      });
-    }
-
-    if (action === 'download_file') {
-      const timestamp = Date.now();
-      const ext = isAudio ? 'mp3' : 'mp4';
-      const outputFilename = `youtube_${resolution}p_${timestamp}.${ext}`;
-      const outputPath = path.join(process.cwd(), 'public/outputs', outputFilename);
-
-      let downloadCmd = '';
-      if (isAudio) {
-        // Mode Audio Cepat
-        downloadCmd = `yt-dlp --no-playlist --js-runtimes node --concurrent-fragments 5 -x --audio-format mp3 -o "${outputPath}" "${cleanUrl}"`;
-      } else {
-        // Mode Turbo Video: Multi-Thread 5 Jalur + Fast Merging tanpa re-encode
-        downloadCmd = `yt-dlp --no-playlist --js-runtimes node --extractor-args "youtube:player_client=ios,android,web" --concurrent-fragments 5 --http-chunk-size 10M -f "bv*[height<=${resolution}]+ba/b[height<=${resolution}]/best" --merge-output-format mp4 -o "${outputPath}" "${cleanUrl}"`;
-      }
-
-      await execAsync(downloadCmd);
-
-      if (!fs.existsSync(outputPath)) {
-        return NextResponse.json({ error: 'Gagal mengunduh video dalam resolusi ini.' }, { status: 400 });
-      }
-
-      return NextResponse.json({
-        success: true,
-        downloadUrl: `/api/downloader?file=${outputFilename}`,
-        filename: outputFilename,
-      });
-    }
-
-    return NextResponse.json({ error: 'Aksi tidak dikenali' }, { status: 400 });
-  } catch (error: any) {
-    console.error('Downloader Error:', error);
-    return NextResponse.json({ error: 'Gagal memproses video: ' + (error.message || 'Error') }, { status: 500 });
+    const url = new URL(input);
+    if (!['http:', 'https:'].includes(url.protocol)) return false;
+    const host = url.hostname.toLowerCase();
+    return host === 'youtu.be' || host.endsWith('.youtube.com') || host === 'youtube.com' || host.endsWith('.tiktok.com') || host === 'tiktok.com';
+  } catch {
+    return false;
   }
 }
 
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const filename = searchParams.get('file');
+async function hasActivePro(userId: string) {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .select('plan,status,expires_at')
+    .eq('user_id', userId)
+    .maybeSingle();
 
-  if (!filename) return new NextResponse('File missing', { status: 400 });
+  if (error || !data?.expires_at) return false;
+  return data.plan === 'pro' && data.status === 'active' && new Date(data.expires_at).getTime() > Date.now();
+}
 
-  const filePath = path.join(process.cwd(), 'public/outputs', path.basename(filename));
+export async function POST(request: Request) {
+  try {
+    const workerUrl = process.env.DOWNLOADER_WORKER_URL;
+    if (!workerUrl) {
+      return NextResponse.json({ error: 'Downloader sedang dinonaktifkan sampai worker produksi dikonfigurasi.' }, { status: 503 });
+    }
 
-  if (!fs.existsSync(filePath)) return new NextResponse('Not found', { status: 404 });
+    const body = await request.json();
+    const action = String(body?.action || '');
+    const url = String(body?.url || '').trim();
+    const resolution = String(body?.resolution || '720');
+    const isAudio = Boolean(body?.isAudio) || resolution === 'mp3';
 
-  const fileBuffer = fs.readFileSync(filePath);
-  const isMp3 = filename.endsWith('.mp3');
+    if (!ACTIONS.has(action)) return NextResponse.json({ error: 'Aksi tidak valid.' }, { status: 400 });
+    if (!isAllowedVideoUrl(url)) return NextResponse.json({ error: 'URL video tidak didukung.' }, { status: 400 });
+    if (!RESOLUTIONS.has(resolution)) return NextResponse.json({ error: 'Resolusi tidak valid.' }, { status: 400 });
 
-  return new NextResponse(fileBuffer, {
-    headers: {
-      'Content-Type': isMp3 ? 'audio/mpeg' : 'video/mp4',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-      'Accept-Ranges': 'bytes',
-    },
-  });
+    if (action === 'download_file' && PRO_RESOLUTIONS.has(resolution)) {
+      const user = await getUserFromRequest(request);
+      if (!user || !(await hasActivePro(user.id))) {
+        return NextResponse.json({ error: 'Resolusi ini khusus pengguna PRO.' }, { status: 403 });
+      }
+    }
+
+    const response = await fetch(workerUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(process.env.DOWNLOADER_WORKER_TOKEN ? { Authorization: `Bearer ${process.env.DOWNLOADER_WORKER_TOKEN}` } : {}),
+      },
+      body: JSON.stringify({ action, url, resolution, isAudio }),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(60_000),
+    });
+
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
+  } catch (error) {
+    console.error('Downloader proxy error:', error);
+    return NextResponse.json({ error: 'Downloader gagal memproses permintaan.' }, { status: 502 });
+  }
 }

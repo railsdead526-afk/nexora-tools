@@ -19,7 +19,7 @@ interface VideoMeta {
 }
 
 export default function VideoDownloaderPage() {
-  const { isPro } = useUser();
+  const { isPro, session } = useUser();
   const [videoUrl, setVideoUrl] = useState('');
   const [loadingInfo, setLoadingInfo] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -39,7 +39,10 @@ export default function VideoDownloaderPage() {
     try {
       const res = await fetch('/api/downloader', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({ action: 'get_info', url: videoUrl.trim() }),
       });
 
@@ -72,7 +75,10 @@ export default function VideoDownloaderPage() {
       const isAudio = selectedQuality === 'mp3';
       const res = await fetch('/api/downloader', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({
           action: 'download_file',
           url: videoUrl.trim(),

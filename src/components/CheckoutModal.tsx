@@ -1,112 +1,96 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
-import { useSession } from 'next-auth/react';
+import { Crown, ShieldCheck, X, QrCode, ArrowRight } from 'lucide-react';
 import { useUser } from '@/context/UserContext';
-import { Crown, CheckCircle2, X, MessageCircle, ShieldCheck } from 'lucide-react';
 
 export default function CheckoutModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const { data: session } = useSession();
-  const [voucher, setVoucher] = useState('');
-  const [success, setSuccess] = useState(false);
+  const { user, session, isPro } = useUser();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   if (!isOpen) return null;
 
-  // NOMOR WHATSAPP KAMU
-  const ADMIN_WA = '6285707203981';
+  const handleCheckout = async () => {
+    if (!session?.access_token) return;
 
-  const userEmail = session?.user?.email || 'Belum Login';
-  const waMessage = encodeURIComponent(
-    `Halo Admin Nexora, saya sudah transfer Rp49.000 via DANA untuk aktivasi Nexora PRO.\n\nEmail Akun: ${userEmail}\nMohon segera kirimkan kode aktivasinya ya!`
-  );
-  const waUrl = `https://wa.me/${ADMIN_WA}?text=${waMessage}`;
+    setLoading(true);
+    setError('');
+    try {
+      const response = await fetch('/api/payments/create', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const data = await response.json();
+      if (!response.ok || !data.redirectUrl) throw new Error(data?.error || 'Gagal membuka pembayaran.');
 
-  const handleVoucher = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (voucher.trim().toUpperCase() === 'NEXORAPRO' || voucher.trim().toUpperCase() === 'AKTIF') {
-      setSuccess(true);
-    } else {
-      alert('Kode aktivasi salah. Silakan kirim bukti transfer ke WhatsApp admin untuk mendapatkan kode.');
+      window.location.assign(data.redirectUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal membuka pembayaran.');
+      setLoading(false);
     }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-      <div className="relative w-full max-w-sm p-6 bg-slate-900 border border-amber-500/40 rounded-3xl shadow-2xl space-y-4">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-full bg-slate-800/60"
-        >
+      <div className="relative w-full max-w-sm p-6 bg-slate-900 border border-amber-500/40 rounded-3xl shadow-2xl space-y-5">
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-full bg-slate-800/60" aria-label="Tutup">
           <X className="w-4 h-4" />
         </button>
 
-        {!success ? (
-          <div className="space-y-4 text-center">
-            <div className="inline-flex p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
-              <Crown className="w-6 h-6" />
-            </div>
+        <div className="text-center space-y-2">
+          <div className="inline-flex p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+            <Crown className="w-6 h-6" />
+          </div>
+          <h2 className="text-xl font-black text-white">Nexora PRO</h2>
+          <p className="text-3xl font-black text-white">Rp49.000 <span className="text-xs text-slate-400 font-medium">/ 30 hari</span></p>
+        </div>
 
-            <div>
-              <h2 className="text-lg font-black text-white">Pembayaran via DANA</h2>
-              <p className="text-[11px] text-slate-400">Scan QRIS DANA di bawah untuk upgrade ke PRO</p>
-            </div>
-
-            {/* Gambar Barcode QR DANA Milikmu */}
-            <div className="flex flex-col items-center justify-center p-3 bg-white rounded-2xl shadow-xl space-y-1">
-              <img
-                src="/qrdana.png"
-                alt="QR DANA"
-                className="w-48 h-48 object-contain rounded-lg"
-              />
-              <span className="text-xs font-black text-slate-950">Total: Rp 49.000 / Bulan</span>
-            </div>
-
-            {/* Tombol Kirim Bukti Transfer ke WA Milikmu */}
-            <a
-              href={waUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 font-bold text-xs text-white rounded-xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2"
-            >
-              <MessageCircle className="w-4 h-4" /> Konfirmasi / Kirim Bukti ke WA
-            </a>
-
-            {/* Form Aktivasi Kode */}
-            <form onSubmit={handleVoucher} className="pt-2 border-t border-slate-800 space-y-2">
-              <p className="text-[10px] text-slate-400">Masukkan kode aktivasi dari Admin:</p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="KODE AKTIVASI"
-                  value={voucher}
-                  onChange={(e) => setVoucher(e.target.value)}
-                  className="flex-1 px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white uppercase focus:outline-none focus:border-amber-500"
-                />
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 font-black text-xs text-slate-950 rounded-xl"
-                >
-                  Aktifkan
-                </button>
-              </div>
-            </form>
+        {isPro ? (
+          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-center text-xs text-emerald-300 font-semibold">
+            Akun kamu sudah aktif sebagai PRO.
+          </div>
+        ) : !user ? (
+          <div className="space-y-3">
+            <p className="text-xs text-slate-300 text-center">Login diperlukan agar pembayaran bisa dikaitkan otomatis ke akun kamu.</p>
+            <Link href="/login" onClick={onClose} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 font-bold text-xs text-white rounded-xl flex items-center justify-center gap-2">
+              Masuk / Daftar <ArrowRight className="w-4 h-4" />
+            </Link>
           </div>
         ) : (
-          <div className="space-y-4 text-center py-4">
-            <div className="inline-flex p-3 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-              <CheckCircle2 className="w-10 h-10" />
+          <>
+            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+              <div className="flex items-start gap-3">
+                <QrCode className="w-5 h-5 text-indigo-400 mt-0.5" />
+                <div>
+                  <p className="text-xs font-bold text-white">Bayar otomatis via QRIS</p>
+                  <p className="text-[11px] text-slate-400 mt-1">Checkout akan dibuka melalui Midtrans. QRIS dapat dibayar dari aplikasi pembayaran yang mendukung QRIS, termasuk DANA.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="w-5 h-5 text-emerald-400 mt-0.5" />
+                <div>
+                  <p className="text-xs font-bold text-white">PRO aktif otomatis</p>
+                  <p className="text-[11px] text-slate-400 mt-1">Setelah pembayaran terverifikasi oleh webhook, masa PRO ditambahkan 30 hari tanpa kode voucher dan tanpa konfirmasi WhatsApp.</p>
+                </div>
+              </div>
             </div>
-            <h2 className="text-xl font-extrabold text-white">Selamat! Anda Resmi PRO</h2>
-            <p className="text-xs text-slate-300">
-              Akun Anda sudah berhasil di-upgrade ke Nexora PRO.
-            </p>
+
+            {error && <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-300">{error}</div>}
+
             <button
-              onClick={onClose}
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 font-bold text-xs text-white rounded-xl shadow-lg shadow-indigo-600/30"
+              type="button"
+              onClick={handleCheckout}
+              disabled={loading}
+              className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 disabled:opacity-60 font-black text-xs text-slate-950 rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2"
             >
-              Tutup & Nikmati Fitur Pro
+              <QrCode className="w-4 h-4" /> {loading ? 'Membuka pembayaran...' : 'Bayar Rp49.000 via QRIS'}
             </button>
-          </div>
+          </>
         )}
       </div>
     </div>

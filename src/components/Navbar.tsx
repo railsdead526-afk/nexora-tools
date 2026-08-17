@@ -1,25 +1,20 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
-import { useSession, signOut } from 'next-auth/react';
+import { useState } from 'react';
 import { useUser } from '@/context/UserContext';
 import FeedbackModal from '@/components/FeedbackModal';
-import { 
-  Sparkles, Crown, Menu, X, LogOut, 
-  MessageSquarePlus, Download, User 
-} from 'lucide-react';
+import { Crown, LogOut, Menu, MessageSquarePlus, Sparkles, User, X } from 'lucide-react';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const { data: session } = useSession();
-  const { isPro } = useUser();
+  const { user, loading, isPro, signOut } = useUser();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const handleSignOut = async () => {
+    await signOut();
+    setIsOpen(false);
+  };
 
   return (
     <>
@@ -32,20 +27,14 @@ export default function Navbar() {
                   <Sparkles className="w-4 h-4 text-amber-400" />
                 </div>
               </div>
-              <span className="text-lg font-black tracking-wider text-white">
-                NEXORA<span className="text-indigo-500">.</span>
-              </span>
+              <span className="text-lg font-black tracking-wider text-white">NEXORA<span className="text-indigo-500">.</span></span>
             </Link>
 
-            {/* Desktop Menu */}
             <div className="hidden md:flex items-center gap-6">
-              <Link href="/" className="text-sm text-slate-300 hover:text-white">
-                Semua Tools
-              </Link>
+              <Link href="/" className="text-sm text-slate-300 hover:text-white">Semua Tools</Link>
               <Link href="/pricing" className="flex items-center gap-1 text-sm font-semibold text-amber-400 hover:text-amber-300">
                 <Crown className="w-4 h-4" /> Nexora Pro
               </Link>
-
               <button
                 type="button"
                 onClick={() => setIsFeedbackOpen(true)}
@@ -54,97 +43,77 @@ export default function Navbar() {
                 <MessageSquarePlus className="w-3.5 h-3.5 text-indigo-400" /> Lapor Bug / Saran
               </button>
 
-              {mounted && session ? (
+              {!loading && user ? (
                 <div className="flex items-center gap-3 pl-4 border-l border-slate-800">
                   <div className="flex items-center gap-2 text-xs">
                     <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white uppercase">
-                      {session.user?.name?.[0] || 'U'}
+                      {user.name[0] || 'U'}
                     </div>
-                    <div className="flex flex-col">
-                      <span className="text-slate-200 font-semibold">{session.user?.name}</span>
-                      {isPro ? (
-                        <span className="text-[9px] font-black text-amber-400">★ PRO MEMBER</span>
-                      ) : (
-                        <span className="text-[9px] text-slate-500">FREE USER</span>
-                      )}
+                    <div className="flex flex-col max-w-36">
+                      <span className="text-slate-200 font-semibold truncate">{user.name}</span>
+                      <span className={isPro ? 'text-[9px] font-black text-amber-400' : 'text-[9px] text-slate-500'}>
+                        {isPro ? '★ PRO MEMBER' : 'FREE USER'}
+                      </span>
                     </div>
                   </div>
                   <button
                     type="button"
-                    onClick={() => signOut()}
+                    onClick={handleSignOut}
                     className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-900 transition-colors"
+                    aria-label="Keluar"
                   >
                     <LogOut className="w-4 h-4" />
                   </button>
                 </div>
-              ) : (
-                <Link
-                  href="/login"
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold rounded-xl text-white shadow-lg shadow-indigo-600/30 transition-all"
-                >
+              ) : !loading ? (
+                <Link href="/login" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold rounded-xl text-white shadow-lg shadow-indigo-600/30 transition-all">
                   Masuk / Daftar
                 </Link>
-              )}
+              ) : null}
             </div>
 
-            {/* Mobile Menu Button */}
             <button
               type="button"
-              onClick={() => setIsOpen(!isOpen)}
+              onClick={() => setIsOpen((value) => !value)}
               className="md:hidden p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-300"
+              aria-label="Buka menu"
             >
               {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
         </div>
 
-        {/* Mobile Menu Dropdown */}
         {isOpen && (
           <div className="md:hidden bg-slate-950 border-b border-slate-800 px-4 py-4 space-y-3">
-            <Link href="/" onClick={() => setIsOpen(false)} className="block text-sm text-slate-300 py-1">
-              Semua Tools
-            </Link>
+            <Link href="/" onClick={() => setIsOpen(false)} className="block text-sm text-slate-300 py-1">Semua Tools</Link>
             <Link href="/pricing" onClick={() => setIsOpen(false)} className="flex items-center gap-2 text-sm font-semibold text-amber-400 py-1">
               <Crown className="w-4 h-4" /> Nexora Pro
             </Link>
-
             <button
               type="button"
               onClick={() => { setIsOpen(false); setIsFeedbackOpen(true); }}
               className="flex items-center gap-2 text-sm font-medium text-slate-300 hover:text-white py-1 w-full text-left"
             >
-              <MessageSquarePlus className="w-4 h-4 text-indigo-400" /> Lapor Bug & Saran Fitur
+              <MessageSquarePlus className="w-4 h-4 text-indigo-400" /> Lapor Bug & Saran
             </button>
 
             <div className="pt-2 border-t border-slate-800">
-              {mounted && session ? (
+              {!loading && user ? (
                 <div className="flex items-center justify-between py-2">
-                  <div className="flex items-center gap-2 text-xs">
-                    <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white uppercase">
-                      {session.user?.name?.[0] || 'U'}
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-slate-200">{session.user?.name}</span>
-                      {isPro ? (
-                        <span className="text-[9px] font-black text-amber-400">★ PRO MEMBER</span>
-                      ) : (
-                        <span className="text-[9px] text-slate-500">FREE USER</span>
-                      )}
+                  <div className="flex items-center gap-2 text-xs min-w-0">
+                    <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white uppercase">{user.name[0] || 'U'}</div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-slate-200 truncate">{user.name}</span>
+                      <span className={isPro ? 'text-[9px] font-black text-amber-400' : 'text-[9px] text-slate-500'}>{isPro ? '★ PRO MEMBER' : 'FREE USER'}</span>
                     </div>
                   </div>
-                  <button type="button" onClick={() => signOut()} className="text-xs text-red-400 font-semibold">
-                    Keluar
-                  </button>
+                  <button type="button" onClick={handleSignOut} className="text-xs text-red-400 font-semibold">Keluar</button>
                 </div>
-              ) : (
-                <Link
-                  href="/login"
-                  onClick={() => setIsOpen(false)}
-                  className="flex items-center justify-center gap-2 w-full py-2.5 bg-indigo-600 text-white font-semibold text-xs rounded-xl shadow-lg shadow-indigo-600/30"
-                >
+              ) : !loading ? (
+                <Link href="/login" onClick={() => setIsOpen(false)} className="flex items-center justify-center gap-2 w-full py-2.5 bg-indigo-600 text-white font-semibold text-xs rounded-xl shadow-lg shadow-indigo-600/30">
                   <User className="w-4 h-4" /> Masuk / Daftar Akun
                 </Link>
-              )}
+              ) : null}
             </div>
           </div>
         )}

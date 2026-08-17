@@ -80,7 +80,7 @@ export default function HomePage() {
           </h1>
 
           <p className="text-slate-400 text-xs md:text-sm leading-relaxed max-w-lg mx-auto">
-            Tools gratis langsung jalan di browser tanpa upload server, plus tools kreator bertenaga AI.
+            Tools praktis untuk dokumen, gambar, teks, QR, dan kebutuhan kreator. Fitur server ditangani lewat API yang tervalidasi.
           </p>
 
           {/* Search Box */}
