@@ -154,11 +154,6 @@ export default function VideoDownloaderPage() {
           </div>
         )}
 
-        {session && quotaRemaining !== null && quotaLimit !== null && (
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 text-xs font-bold">
-            Kuota hari ini: {quotaRemaining}/{quotaLimit} download tersisa
-          </div>
-        )}
       </div>
 
       {/* Input Form */}

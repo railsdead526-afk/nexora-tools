@@ -209,11 +209,6 @@ export default function BgRemoverPage() {
           </div>
         )}
 
-        {session && quotaRemaining !== null && quotaLimit !== null && (
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 text-xs font-bold">
-            Kuota hari ini: {quotaRemaining}/{quotaLimit} proses tersisa
-          </div>
-        )}
       </div>
 
       <div className="p-6 rounded-3xl bg-slate-900/80 border border-slate-800/90 shadow-2xl space-y-5">
