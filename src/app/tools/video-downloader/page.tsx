@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useUser } from '@/context/UserContext';
 import CheckoutModal from '@/components/CheckoutModal';
@@ -27,6 +27,33 @@ export default function VideoDownloaderPage() {
   const [selectedQuality, setSelectedQuality] = useState<'360' | '720' | '1080' | '1440' | '2160' | 'mp3'>('720');
   const [readyDownloadUrl, setReadyDownloadUrl] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [quotaRemaining, setQuotaRemaining] = useState<number | null>(null);
+  const [quotaLimit, setQuotaLimit] = useState<number | null>(null);
+
+  const refreshQuota = useCallback(async () => {
+    if (!session?.access_token) {
+      setQuotaRemaining(null);
+      setQuotaLimit(null);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/quota/status?tool=downloader', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        cache: 'no-store',
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || 'Gagal memuat quota.');
+      setQuotaRemaining(Number(data.remaining || 0));
+      setQuotaLimit(Number(data.limit || 0));
+    } catch (error) {
+      console.error('Downloader quota status error:', error);
+    }
+  }, [session?.access_token]);
+
+  useEffect(() => {
+    void refreshQuota();
+  }, [refreshQuota]);
 
   const handleFetchInfo = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,7 +117,13 @@ export default function VideoDownloaderPage() {
       const data = await res.json();
       if (data.success && data.downloadUrl) {
         setReadyDownloadUrl(data.downloadUrl);
+        await refreshQuota();
       } else {
+        if (res.status === 429 && data?.quota) {
+          setQuotaRemaining(Number(data.quota.remaining || 0));
+          setQuotaLimit(Number(data.quota.limit || 0));
+          if (!isPro) setIsModalOpen(true);
+        }
         alert(data.error || 'Gagal mengunduh file.');
       }
     } catch (err) {
@@ -118,6 +151,12 @@ export default function VideoDownloaderPage() {
         {isPro && (
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold">
             <Crown className="w-4 h-4" /> Mode PRO: Akses Download 1080p, 2K & 4K Aktif
+          </div>
+        )}
+
+        {session && quotaRemaining !== null && quotaLimit !== null && (
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 text-xs font-bold">
+            Kuota hari ini: {quotaRemaining}/{quotaLimit} download tersisa
           </div>
         )}
       </div>

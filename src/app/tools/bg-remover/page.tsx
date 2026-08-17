@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useUser } from '@/context/UserContext';
 import CheckoutModal from '@/components/CheckoutModal';
@@ -10,17 +10,81 @@ import {
 } from 'lucide-react';
 
 export default function BgRemoverPage() {
-  const { isPro } = useUser();
+  const { isPro, session } = useUser();
   const [originalFile, setOriginalFile] = useState<File | null>(null);
   const [originalSrc, setOriginalSrc] = useState<string | null>(null);
   const [finalImageUrl, setFinalImageUrl] = useState<string | null>(null);
   const [bgColor, setBgColor] = useState<string>('transparent');
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [quotaRemaining, setQuotaRemaining] = useState<number | null>(null);
+  const [quotaLimit, setQuotaLimit] = useState<number | null>(null);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  useEffect(() => {
+    if (!session?.access_token) {
+      setQuotaRemaining(null);
+      setQuotaLimit(null);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    fetch('/api/quota/status?tool=bg_remover', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data?.error || 'Gagal memuat quota.');
+        setQuotaRemaining(Number(data.remaining || 0));
+        setQuotaLimit(Number(data.limit || 0));
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        console.error('Background remover quota status error:', error);
+      });
+
+    return () => controller.abort();
+  }, [session?.access_token]);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.currentTarget;
+    const file = input.files?.[0];
     if (!file) return;
+
+    if (!session?.access_token) {
+      input.value = '';
+      alert('Login dulu untuk menggunakan Background Remover.');
+      window.location.href = '/login';
+      return;
+    }
+
+    try {
+      const quotaResponse = await fetch('/api/quota/consume', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ tool: 'bg_remover' }),
+      });
+      const quotaData = await quotaResponse.json();
+
+      if (!quotaResponse.ok) {
+        input.value = '';
+        if (quotaResponse.status === 429 && !isPro) setIsModalOpen(true);
+        alert(quotaData?.error || 'Quota tidak dapat diproses.');
+        return;
+      }
+
+      setQuotaRemaining(Number(quotaData?.quota?.remaining || 0));
+      setQuotaLimit(Number(quotaData?.quota?.limit || 0));
+    } catch {
+      input.value = '';
+      alert('Gagal memeriksa quota. Coba lagi.');
+      return;
+    }
 
     setOriginalFile(file);
     setFinalImageUrl(null);
@@ -142,6 +206,12 @@ export default function BgRemoverPage() {
         {isPro && (
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold">
             <Crown className="w-4 h-4" /> Mode PRO: Unduh Ultra HD 4K
+          </div>
+        )}
+
+        {session && quotaRemaining !== null && quotaLimit !== null && (
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 text-xs font-bold">
+            Kuota hari ini: {quotaRemaining}/{quotaLimit} proses tersisa
           </div>
         )}
       </div>

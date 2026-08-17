@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/auth/require-user';
-import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+import { getAccountSubscriptionStatus } from '@/lib/account/subscription';
+import { consumeToolQuota, refundToolQuota } from '@/lib/usage/quota';
 
 const ACTIONS = new Set(['get_info', 'download_file']);
 const RESOLUTIONS = new Set(['360', '720', '1080', '1440', '2160', 'mp3']);
@@ -17,19 +18,10 @@ function isAllowedVideoUrl(input: string) {
   }
 }
 
-async function hasActivePro(userId: string) {
-  const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from('subscriptions')
-    .select('plan,status,expires_at')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (error || !data?.expires_at) return false;
-  return data.plan === 'pro' && data.status === 'active' && new Date(data.expires_at).getTime() > Date.now();
-}
-
 export async function POST(request: Request) {
+  let quotaUserId: string | null = null;
+  let quotaConsumed = false;
+
   try {
     const workerUrl = process.env.DOWNLOADER_WORKER_URL;
     if (!workerUrl) {
@@ -46,11 +38,32 @@ export async function POST(request: Request) {
     if (!isAllowedVideoUrl(url)) return NextResponse.json({ error: 'URL video tidak didukung.' }, { status: 400 });
     if (!RESOLUTIONS.has(resolution)) return NextResponse.json({ error: 'Resolusi tidak valid.' }, { status: 400 });
 
-    if (action === 'download_file' && PRO_RESOLUTIONS.has(resolution)) {
+    // Metadata boleh dicek tanpa mengurangi quota. Download file wajib login dan tercatat server-side.
+    if (action === 'download_file') {
       const user = await getUserFromRequest(request);
-      if (!user || !(await hasActivePro(user.id))) {
+      if (!user) {
+        return NextResponse.json({ error: 'Login diperlukan untuk mengunduh file.' }, { status: 401 });
+      }
+
+      quotaUserId = user.id;
+      const subscription = await getAccountSubscriptionStatus(user.id);
+
+      if (PRO_RESOLUTIONS.has(resolution) && !subscription.isPro) {
         return NextResponse.json({ error: 'Resolusi ini khusus pengguna PRO.' }, { status: 403 });
       }
+
+      const quota = await consumeToolQuota(user.id, 'downloader');
+      if (!quota.allowed) {
+        return NextResponse.json(
+          {
+            error: `Batas downloader hari ini sudah tercapai (${quota.limit}x).`,
+            quota,
+          },
+          { status: 429 },
+        );
+      }
+
+      quotaConsumed = true;
     }
 
     const response = await fetch(workerUrl, {
@@ -64,9 +77,19 @@ export async function POST(request: Request) {
       signal: AbortSignal.timeout(60_000),
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({ error: 'Worker mengembalikan respons yang tidak valid.' }));
+
+    if (quotaConsumed && quotaUserId && (!response.ok || data?.success === false)) {
+      await refundToolQuota(quotaUserId, 'downloader');
+      quotaConsumed = false;
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
+    if (quotaConsumed && quotaUserId) {
+      await refundToolQuota(quotaUserId, 'downloader');
+    }
+
     console.error('Downloader proxy error:', error);
     return NextResponse.json({ error: 'Downloader gagal memproses permintaan.' }, { status: 502 });
   }
