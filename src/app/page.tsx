@@ -41,6 +41,8 @@ export default function HomePage() {
         return <KeyRound className="w-5 h-5 text-yellow-400" />;
       case 'compress':
         return <ImageDown className="w-5 h-5 text-blue-400" />;
+      case 'bg-remove':
+        return <Sparkles className="w-5 h-5 text-emerald-400" />;
       case 'merge':
         return <Files className="w-5 h-5 text-emerald-400" />;
       case 'qr':

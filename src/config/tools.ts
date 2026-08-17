@@ -5,7 +5,7 @@ export interface Tool {
   category: 'Image' | 'Text' | 'PDF' | 'Generator' | 'Video';
   slug: string;
   isPremium: boolean;
-  iconName: 'pen' | 'download-video' | 'pdf-img' | 'gmail' | 'key' | 'compress' | 'merge' | 'qr' | 'case';
+  iconName: 'pen' | 'download-video' | 'pdf-img' | 'gmail' | 'key' | 'compress' | 'bg-remove' | 'merge' | 'qr' | 'case';
   badge?: string;
 }
 
@@ -56,6 +56,16 @@ export const TOOLS_DATA: Tool[] = [
     slug: 'image-compressor',
     isPremium: false,
     iconName: 'compress',
+  },
+  {
+    id: '9',
+    name: 'AI Background Remover & Pas Foto',
+    description: 'Hapus latar foto dan buat background transparan, merah, biru, atau putih langsung dari browser.',
+    category: 'Image',
+    slug: 'bg-remover',
+    isPremium: false,
+    iconName: 'bg-remove',
+    badge: 'AI',
   },
   {
     id: '6',
