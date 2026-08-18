@@ -2,18 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import {
-  ArrowRight,
-  Check,
-  Copy,
-  Crown,
-  FileImage,
-  Loader2,
-  ShieldCheck,
-  Upload,
-  WalletCards,
-  X,
-} from 'lucide-react';
+import { ArrowRight, Check, Copy, Crown, FileImage, Loader2, ShieldCheck, Upload, WalletCards, X } from 'lucide-react';
 import { useUser } from '@/context/UserContext';
 
 type DanaOrder = {
@@ -30,6 +19,57 @@ function formatRupiah(value: number) {
     currency: 'IDR',
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function uploadProofRequest(
+  accessToken: string,
+  orderId: string,
+  proof: File,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+
+    formData.set('orderId', orderId);
+    formData.set('proof', proof, proof.name);
+
+    xhr.open('POST', '/api/payments/proof', true);
+    xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
+    xhr.timeout = 60_000;
+
+    xhr.onload = () => {
+      let data: { error?: string } = {};
+      try {
+        data = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+      } catch {}
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+        return;
+      }
+
+      reject(
+        new Error(
+          data.error || `Upload gagal dengan status HTTP ${xhr.status}.`,
+        ),
+      );
+    };
+
+    xhr.onerror = () =>
+      reject(
+        new Error(
+          'Koneksi upload gagal sebelum mencapai server. Coba lagi atau ganti jaringan.',
+        ),
+      );
+
+    xhr.ontimeout = () =>
+      reject(new Error('Upload terlalu lama dan dihentikan. Coba lagi.'));
+
+    xhr.onabort = () =>
+      reject(new Error('Upload dibatalkan.'));
+
+    xhr.send(formData);
+  });
 }
 
 export default function CheckoutModal({
@@ -72,6 +112,7 @@ export default function CheckoutModal({
       });
 
       const data = await response.json();
+
       if (!response.ok) {
         throw new Error(data?.error || 'Gagal membuat order pembayaran.');
       }
@@ -85,9 +126,7 @@ export default function CheckoutModal({
       });
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : 'Gagal membuat order pembayaran.',
+        err instanceof Error ? err.message : 'Gagal membuat order pembayaran.',
       );
     } finally {
       setLoadingOrder(false);
@@ -107,7 +146,20 @@ export default function CheckoutModal({
   };
 
   const uploadProof = async () => {
-    if (!session?.access_token || !order || !proof) return;
+    if (!session?.access_token) {
+      setError('Sesi login tidak ditemukan. Silakan login ulang.');
+      return;
+    }
+
+    if (!order) {
+      setError('Order pembayaran tidak ditemukan.');
+      return;
+    }
+
+    if (!proof) {
+      setError('Pilih bukti transfer terlebih dahulu.');
+      return;
+    }
 
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(proof.type)) {
       setError('Bukti transfer harus berupa JPG, PNG, atau WebP.');
@@ -123,31 +175,18 @@ export default function CheckoutModal({
     setError('');
 
     try {
-      const formData = new FormData();
-      formData.set('orderId', order.orderId);
-      formData.set('proof', proof);
-
-      const response = await fetch('/api/payments/proof', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: formData,
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || 'Gagal mengunggah bukti transfer.');
-      }
+      await uploadProofRequest(
+        session.access_token,
+        order.orderId,
+        proof,
+      );
 
       window.location.assign(
         `/payment/finish?orderId=${encodeURIComponent(order.orderId)}`,
       );
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : 'Gagal mengunggah bukti transfer.',
+        err instanceof Error ? err.message : 'Gagal mengunggah bukti transfer.',
       );
     } finally {
       setUploading(false);
@@ -170,10 +209,14 @@ export default function CheckoutModal({
           <div className="inline-flex rounded-2xl border border-amber-500/20 bg-amber-500/10 p-3 text-amber-400">
             <Crown className="h-6 w-6" />
           </div>
+
           <h2 className="text-xl font-black text-white">Nexora PRO</h2>
+
           <p className="text-3xl font-black text-white">
             Rp49.000{' '}
-            <span className="text-xs font-medium text-slate-400">/ 30 hari</span>
+            <span className="text-xs font-medium text-slate-400">
+              / 30 hari
+            </span>
           </p>
         </div>
 
@@ -186,6 +229,7 @@ export default function CheckoutModal({
             <p className="text-center text-xs text-slate-300">
               Login diperlukan agar pembayaran terhubung ke akun kamu.
             </p>
+
             <Link
               href="/login"
               onClick={onClose}
@@ -201,10 +245,11 @@ export default function CheckoutModal({
               <div className="flex items-start gap-3">
                 <WalletCards className="mt-0.5 h-5 w-5 shrink-0 text-sky-400" />
                 <div>
-                  <p className="text-xs font-bold text-white">Transfer manual via DANA</p>
+                  <p className="text-xs font-bold text-white">
+                    Transfer manual via DANA
+                  </p>
                   <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
-                    Sistem membuat order terlebih dahulu. Nomor tujuan DANA
-                    ditampilkan setelah order berhasil dibuat.
+                    Sistem akan membuat order resmi terlebih dahulu.
                   </p>
                 </div>
               </div>
@@ -212,10 +257,11 @@ export default function CheckoutModal({
               <div className="flex items-start gap-3">
                 <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
                 <div>
-                  <p className="text-xs font-bold text-white">Verifikasi bukti transfer</p>
+                  <p className="text-xs font-bold text-white">
+                    Verifikasi bukti transfer
+                  </p>
                   <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
-                    PRO hanya aktif setelah bukti transfer diperiksa dan
-                    disetujui admin.
+                    PRO aktif setelah bukti transfer disetujui admin.
                   </p>
                 </div>
               </div>
@@ -231,7 +277,7 @@ export default function CheckoutModal({
               type="button"
               onClick={createOrder}
               disabled={loadingOrder}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-600 py-3.5 text-xs font-black text-slate-950 shadow-lg shadow-amber-500/20 disabled:opacity-60"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-600 py-3.5 text-xs font-black text-slate-950 disabled:opacity-60"
             >
               {loadingOrder ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -241,46 +287,40 @@ export default function CheckoutModal({
               {loadingOrder ? 'Membuat order...' : 'Lanjut Pembayaran'}
             </button>
           </>
-        ) : order.status === 'pending_review' ? (
-          <>
-            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-center">
-              <ShieldCheck className="mx-auto h-8 w-8 text-amber-400" />
-              <p className="mt-3 text-sm font-black text-white">
-                Bukti transfer sedang diperiksa
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-slate-400">
-                Order ini sudah memiliki bukti transfer. Tunggu admin
-                menyelesaikan verifikasi.
-              </p>
-            </div>
-            <Link
-              href={`/payment/finish?orderId=${encodeURIComponent(order.orderId)}`}
-              className="block w-full rounded-xl bg-indigo-600 py-3 text-center text-xs font-bold text-white hover:bg-indigo-500"
-            >
-              Lihat Status Pembayaran
-            </Link>
-          </>
         ) : (
           <>
             <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950 p-4">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Order ID</p>
-                <p className="mt-1 break-all font-mono text-xs text-slate-300">{order.orderId}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Order ID
+                </p>
+                <p className="mt-1 break-all font-mono text-xs text-slate-300">
+                  {order.orderId}
+                </p>
               </div>
 
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Nominal transfer</p>
-                <p className="mt-1 text-xl font-black text-amber-400">{formatRupiah(order.amount)}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Nominal transfer
+                </p>
+                <p className="mt-1 text-xl font-black text-amber-400">
+                  {formatRupiah(order.amount)}
+                </p>
               </div>
 
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Tujuan DANA</p>
-                <p className="mt-1 text-xs font-bold text-white">{order.accountName}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Tujuan DANA
+                </p>
+                <p className="mt-1 text-xs font-bold text-white">
+                  {order.accountName}
+                </p>
 
                 <div className="mt-2 flex items-center gap-2">
                   <code className="min-w-0 flex-1 break-all rounded-xl border border-slate-800 bg-slate-900 px-3 py-2.5 text-sm font-bold text-sky-300">
                     {order.accountNumber}
                   </code>
+
                   <button
                     type="button"
                     onClick={copyDanaNumber}
@@ -298,9 +338,7 @@ export default function CheckoutModal({
             </div>
 
             <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-[11px] leading-relaxed text-amber-200">
-              Transfer sesuai nominal yang tertera. Setelah selesai, unggah
-              screenshot bukti transaksi. Jangan unggah data sensitif lain yang
-              tidak diperlukan.
+              Transfer sesuai nominal yang tertera, lalu unggah screenshot bukti transaksi.
             </div>
 
             <label className="block cursor-pointer rounded-2xl border border-dashed border-slate-700 bg-slate-950 p-4 hover:border-slate-600">
@@ -313,17 +351,25 @@ export default function CheckoutModal({
                   setError('');
                 }}
               />
+
               <div className="flex items-center gap-3">
                 <FileImage className="h-5 w-5 shrink-0 text-indigo-400" />
+
                 <div className="min-w-0">
-                  <p className="text-xs font-bold text-white">Bukti transfer</p>
-                  <p className="mt-1 truncate text-[11px] text-slate-400">{proofLabel}</p>
+                  <p className="text-xs font-bold text-white">
+                    Bukti transfer
+                  </p>
+                  <p className="mt-1 truncate text-[11px] text-slate-400">
+                    {proofLabel}
+                  </p>
                 </div>
               </div>
             </label>
 
             {error && (
-              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">{error}</div>
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+                {error}
+              </div>
             )}
 
             <button
