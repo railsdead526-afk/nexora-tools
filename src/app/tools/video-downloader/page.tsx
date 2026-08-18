@@ -55,6 +55,42 @@ export default function VideoDownloaderPage() {
     void refreshQuota();
   }, [refreshQuota]);
 
+  const getDownloaderErrorMessage = (
+    status: number,
+    data: { error?: string; code?: string },
+    fallback: string,
+  ) => {
+    switch (data?.code) {
+      case 'upstream_auth_required':
+        return 'YouTube sementara tidak dapat diproses dari server. Coba lagi nanti atau gunakan sumber video lain.';
+
+      case 'upstream_rate_limited':
+        return 'Sumber video sedang membatasi permintaan. Coba lagi beberapa saat lagi.';
+
+      case 'upstream_timeout':
+        return 'Sumber video terlalu lama merespons. Silakan coba lagi.';
+
+      case 'video_unavailable':
+        return 'Video tidak tersedia, privat, atau sudah dihapus.';
+
+      case 'unsupported_url':
+        return 'URL ini belum didukung oleh downloader.';
+
+      case 'format_unavailable':
+        return 'Kualitas yang dipilih tidak tersedia untuk video ini.';
+
+      case 'file_too_large':
+        return 'Ukuran video melebihi batas downloader.';
+
+      default:
+        if (status >= 500) {
+          return data?.error || 'Sumber video sedang mengalami gangguan.';
+        }
+
+        return data?.error || fallback;
+    }
+  };
+
   const handleFetchInfo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!videoUrl.trim()) return;
@@ -77,7 +113,13 @@ export default function VideoDownloaderPage() {
       if (data.success) {
         setVideoMeta(data);
       } else {
-        alert(data.error || 'Gagal mengambil data video. Pastikan link publik.');
+        alert(
+          getDownloaderErrorMessage(
+            res.status,
+            data,
+            'Gagal mengambil data video. Pastikan link publik.',
+          ),
+        );
       }
     } catch (err) {
       alert('Terjadi kesalahan koneksi.');
@@ -124,7 +166,13 @@ export default function VideoDownloaderPage() {
           setQuotaLimit(Number(data.quota.limit || 0));
           if (!isPro) setIsModalOpen(true);
         }
-        alert(data.error || 'Gagal mengunduh file.');
+        alert(
+          getDownloaderErrorMessage(
+            res.status,
+            data,
+            'Gagal mengunduh file.',
+          ),
+        );
       }
     } catch (err) {
       alert('Gagal mendownload.');
