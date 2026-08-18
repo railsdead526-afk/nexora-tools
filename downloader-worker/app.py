@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hmac
+import logging
 import os
 import re
 import shutil
@@ -17,6 +18,9 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from starlette.background import BackgroundTask
 import yt_dlp
+
+APP_LOG = logging.getLogger("nexora.downloader")
+APP_LOG.setLevel(logging.INFO)
 
 APP_NAME = "Nexora Downloader Worker"
 TMP_ROOT = Path(os.getenv("DOWNLOAD_TMP_DIR", "/tmp/nexora-downloads"))
@@ -55,6 +59,26 @@ class YtDlpLogger:
 
     def error(self, msg: str) -> None:
         self.errors.append(msg)
+
+
+def safe_error_for_log(message: object) -> str:
+    text = str(message)
+
+    # Jangan bocorkan URL bertoken/signature dari CDN.
+    text = re.sub(r"https?://\S+", "<url>", text)
+
+    # Jangan bocorkan token/cookie/authorization jika muncul di exception.
+    text = re.sub(
+        r"(?i)(authorization|bearer|token|cookie)(\s*[:=]\s*|\s+)\S+",
+        r"\1=<redacted>",
+        text,
+    )
+
+    # Path file temporary tidak perlu muncul di log produksi.
+    text = re.sub(r"/tmp/\S+", "<tmp-path>", text)
+
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:1000]
 
 
 def require_worker_token(authorization: str | None) -> None:
@@ -139,6 +163,13 @@ def extract_info(raw_url: str) -> dict:
             info = ydl.extract_info(raw_url, download=False)
     except Exception as exc:
         message = logger.errors[-1] if logger.errors else str(exc)
+
+        APP_LOG.warning(
+            "yt-dlp extract_info failed host=%s detail=%s",
+            (urlparse(raw_url).hostname or "unknown").lower(),
+            safe_error_for_log(message),
+        )
+
         raise RuntimeError(clean_error(message)) from exc
 
     if not isinstance(info, dict):
@@ -256,6 +287,13 @@ def download_media(raw_url: str, resolution: str, is_audio: bool) -> tuple[Path,
     except Exception as exc:
         shutil.rmtree(job_dir, ignore_errors=True)
         message = logger.errors[-1] if logger.errors else str(exc)
+
+        APP_LOG.warning(
+            "yt-dlp download failed host=%s detail=%s",
+            (urlparse(raw_url).hostname or "unknown").lower(),
+            safe_error_for_log(message),
+        )
+
         raise RuntimeError(clean_error(message)) from exc
 
 
