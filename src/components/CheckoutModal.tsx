@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { createClient } from '@supabase/supabase-js';
 import { useMemo, useState } from 'react';
 import {
   ArrowRight,
@@ -24,6 +25,12 @@ type DanaOrder = {
   accountNumber: string;
 };
 
+type PrepareResponse = {
+  path?: string;
+  token?: string;
+  error?: string;
+};
+
 const MAX_PROOF_SIZE = 3 * 1024 * 1024;
 
 function formatRupiah(value: number) {
@@ -34,37 +41,23 @@ function formatRupiah(value: number) {
   }).format(value);
 }
 
-async function readFileAsBase64(file: File): Promise<string> {
-  let buffer: ArrayBuffer;
+function getStorageClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-  try {
-    buffer = await file.arrayBuffer();
-  } catch {
-    const objectUrl = URL.createObjectURL(file);
-
-    try {
-      const response = await fetch(objectUrl);
-
-      if (!response.ok) {
-        throw new Error('Browser gagal membaca file yang dipilih.');
-      }
-
-      buffer = await response.arrayBuffer();
-    } finally {
-      URL.revokeObjectURL(objectUrl);
-    }
+  if (!url || !key) {
+    throw new Error('Konfigurasi Supabase publik belum tersedia.');
   }
 
-  const bytes = new Uint8Array(buffer);
-  const chunkSize = 0x8000;
-  let binary = '';
-
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    const chunk = bytes.subarray(offset, offset + chunkSize);
-    binary += String.fromCharCode(...chunk);
-  }
-
-  return btoa(binary);
+  return createClient(url, key, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
 }
 
 export default function CheckoutModal({
@@ -176,34 +169,70 @@ export default function CheckoutModal({
     setError('');
 
     try {
-      const base64 = await readFileAsBase64(proof);
-
-      const response = await fetch('/api/payments/proof', {
+      // 1. Minta signed upload token. Request ini kecil dan tidak membawa file.
+      const prepareResponse = await fetch('/api/payments/proof', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          action: 'prepare',
           orderId: order.orderId,
-          fileName: proof.name,
           mimeType: proof.type,
-          dataBase64: base64,
+          size: proof.size,
         }),
       });
 
-      let data: { error?: string } = {};
+      const prepared = (await prepareResponse.json()) as PrepareResponse;
 
-      try {
-        data = await response.json();
-      } catch {
-        data = {};
+      if (!prepareResponse.ok || !prepared.path || !prepared.token) {
+        throw new Error(
+          prepared.error || 'Gagal menyiapkan upload bukti transfer.',
+        );
       }
 
-      if (!response.ok) {
+      // 2. File dikirim langsung ke Supabase Storage, tidak melewati Vercel.
+      const bytes = await proof.arrayBuffer();
+      const storage = getStorageClient();
+
+      const { error: storageError } = await storage.storage
+        .from('payment-proofs')
+        .uploadToSignedUrl(
+          prepared.path,
+          prepared.token,
+          bytes,
+          {
+            contentType: proof.type,
+            cacheControl: '3600',
+          },
+        );
+
+      if (storageError) {
         throw new Error(
-          data.error ||
-            `Upload gagal dengan status HTTP ${response.status}.`,
+          storageError.message || 'Upload ke penyimpanan gagal.',
+        );
+      }
+
+      // 3. Beri tahu backend untuk memverifikasi file lalu ubah status.
+      const finalizeResponse = await fetch('/api/payments/proof', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'finalize',
+          orderId: order.orderId,
+          path: prepared.path,
+        }),
+      });
+
+      const finalized = await finalizeResponse.json();
+
+      if (!finalizeResponse.ok) {
+        throw new Error(
+          finalized?.error || 'Gagal menyelesaikan verifikasi upload.',
         );
       }
 

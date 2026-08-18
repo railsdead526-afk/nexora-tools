@@ -13,11 +13,17 @@ const MIME_EXTENSIONS: Record<string, string> = {
   'image/webp': 'webp',
 };
 
-type ProofBody = {
+type PrepareBody = {
+  action: 'prepare';
   orderId?: unknown;
-  fileName?: unknown;
   mimeType?: unknown;
-  dataBase64?: unknown;
+  size?: unknown;
+};
+
+type FinalizeBody = {
+  action: 'finalize';
+  orderId?: unknown;
+  path?: unknown;
 };
 
 function hasValidSignature(buffer: Buffer, mimeType: string) {
@@ -55,9 +61,28 @@ function hasValidSignature(buffer: Buffer, mimeType: string) {
   return false;
 }
 
-export async function POST(request: Request) {
-  let uploadedPath: string | null = null;
+async function getPayment(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  orderId: string,
+  userId: string,
+) {
+  const { data, error } = await supabase
+    .from('payments')
+    .select(
+      'id,status,provider,proof_path,provider_order_id',
+    )
+    .eq('provider_order_id', orderId)
+    .eq('user_id', userId)
+    .maybeSingle();
 
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function POST(request: Request) {
   try {
     const user = await getUserFromRequest(request);
 
@@ -68,21 +93,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = (await request.json()) as ProofBody;
+    const body = (await request.json()) as
+      | PrepareBody
+      | FinalizeBody;
 
     const orderId =
       typeof body.orderId === 'string'
         ? body.orderId.trim()
-        : '';
-
-    const mimeType =
-      typeof body.mimeType === 'string'
-        ? body.mimeType.trim().toLowerCase()
-        : '';
-
-    const dataBase64 =
-      typeof body.dataBase64 === 'string'
-        ? body.dataBase64.trim()
         : '';
 
     if (!orderId) {
@@ -92,78 +109,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const extension = MIME_EXTENSIONS[mimeType];
-
-    if (!extension) {
-      return NextResponse.json(
-        {
-          error:
-            'Format bukti transfer harus JPG, PNG, atau WebP.',
-        },
-        { status: 415 },
-      );
-    }
-
-    if (!dataBase64) {
-      return NextResponse.json(
-        { error: 'Data bukti transfer kosong.' },
-        { status: 400 },
-      );
-    }
-
-    let bytes: Buffer;
-
-    try {
-      bytes = Buffer.from(dataBase64, 'base64');
-    } catch {
-      return NextResponse.json(
-        { error: 'Data gambar tidak valid.' },
-        { status: 400 },
-      );
-    }
-
-    if (bytes.length <= 0) {
-      return NextResponse.json(
-        { error: 'File bukti transfer kosong.' },
-        { status: 400 },
-      );
-    }
-
-    if (bytes.length > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        {
-          error:
-            'Ukuran bukti transfer maksimal 3 MB.',
-        },
-        { status: 413 },
-      );
-    }
-
-    if (!hasValidSignature(bytes, mimeType)) {
-      return NextResponse.json(
-        {
-          error:
-            'Isi file tidak cocok dengan format gambar yang dipilih.',
-        },
-        { status: 415 },
-      );
-    }
-
     const supabase = createSupabaseAdminClient();
-
-    const { data: payment, error: paymentError } =
-      await supabase
-        .from('payments')
-        .select(
-          'id,status,provider,proof_path,provider_order_id',
-        )
-        .eq('provider_order_id', orderId)
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-    if (paymentError) {
-      throw paymentError;
-    }
+    const payment = await getPayment(
+      supabase,
+      orderId,
+      user.id,
+    );
 
     if (!payment) {
       return NextResponse.json(
@@ -194,70 +145,197 @@ export async function POST(request: Request) {
       );
     }
 
-    uploadedPath =
-      `${user.id}/${payment.id}/` +
-      `${randomUUID()}.${extension}`;
+    if (body.action === 'prepare') {
+      const mimeType =
+        typeof body.mimeType === 'string'
+          ? body.mimeType.trim().toLowerCase()
+          : '';
 
-    const { error: uploadError } = await supabase.storage
-      .from('payment-proofs')
-      .upload(uploadedPath, bytes, {
-        contentType: mimeType,
-        cacheControl: '3600',
-        upsert: false,
+      const size =
+        typeof body.size === 'number'
+          ? body.size
+          : Number.NaN;
+
+      const extension = MIME_EXTENSIONS[mimeType];
+
+      if (!extension) {
+        return NextResponse.json(
+          {
+            error:
+              'Format bukti transfer harus JPG, PNG, atau WebP.',
+          },
+          { status: 415 },
+        );
+      }
+
+      if (
+        !Number.isFinite(size) ||
+        size <= 0 ||
+        size > MAX_FILE_SIZE
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'Ukuran bukti transfer harus lebih dari 0 dan maksimal 3 MB.',
+          },
+          { status: 413 },
+        );
+      }
+
+      const path =
+        `${user.id}/${payment.id}/` +
+        `${randomUUID()}.${extension}`;
+
+      const { data, error } = await supabase.storage
+        .from('payment-proofs')
+        .createSignedUploadUrl(path);
+
+      if (error || !data?.token) {
+        throw error || new Error(
+          'Gagal membuat signed upload token.',
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        path,
+        token: data.token,
       });
-
-    if (uploadError) {
-      throw uploadError;
     }
 
-    const oldProofPath = payment.proof_path;
-    const now = new Date().toISOString();
+    if (body.action === 'finalize') {
+      const path =
+        typeof body.path === 'string'
+          ? body.path.trim()
+          : '';
 
-    const { error: updateError } = await supabase
-      .from('payments')
-      .update({
-        proof_path: uploadedPath,
+      const requiredPrefix =
+        `${user.id}/${payment.id}/`;
+
+      if (!path || !path.startsWith(requiredPrefix)) {
+        return NextResponse.json(
+          { error: 'Path bukti transfer tidak valid.' },
+          { status: 400 },
+        );
+      }
+
+      const { data: fileBlob, error: downloadError } =
+        await supabase.storage
+          .from('payment-proofs')
+          .download(path);
+
+      if (downloadError || !fileBlob) {
+        return NextResponse.json(
+          {
+            error:
+              'File bukti transfer belum ditemukan di penyimpanan.',
+          },
+          { status: 400 },
+        );
+      }
+
+      const bytes = Buffer.from(
+        await fileBlob.arrayBuffer(),
+      );
+
+      if (
+        bytes.length <= 0 ||
+        bytes.length > MAX_FILE_SIZE
+      ) {
+        await supabase.storage
+          .from('payment-proofs')
+          .remove([path]);
+
+        return NextResponse.json(
+          {
+            error:
+              'Ukuran file bukti transfer tidak valid.',
+          },
+          { status: 413 },
+        );
+      }
+
+      const lowerPath = path.toLowerCase();
+      const expectedMime =
+        lowerPath.endsWith('.jpg') ||
+        lowerPath.endsWith('.jpeg')
+          ? 'image/jpeg'
+          : lowerPath.endsWith('.png')
+            ? 'image/png'
+            : lowerPath.endsWith('.webp')
+              ? 'image/webp'
+              : '';
+
+      if (
+        !expectedMime ||
+        !hasValidSignature(bytes, expectedMime)
+      ) {
+        await supabase.storage
+          .from('payment-proofs')
+          .remove([path]);
+
+        return NextResponse.json(
+          {
+            error:
+              'Isi file bukan gambar JPG, PNG, atau WebP yang valid.',
+          },
+          { status: 415 },
+        );
+      }
+
+      const oldProofPath = payment.proof_path;
+      const now = new Date().toISOString();
+
+      const { error: updateError } = await supabase
+        .from('payments')
+        .update({
+          proof_path: path,
+          status: 'pending_review',
+          submitted_at: now,
+          reviewed_at: null,
+          reviewed_by: null,
+          review_note: null,
+          updated_at: now,
+        })
+        .eq('id', payment.id)
+        .eq('user_id', user.id);
+
+      if (updateError) {
+        await supabase.storage
+          .from('payment-proofs')
+          .remove([path]);
+
+        throw updateError;
+      }
+
+      if (oldProofPath && oldProofPath !== path) {
+        await supabase.storage
+          .from('payment-proofs')
+          .remove([oldProofPath]);
+      }
+
+      return NextResponse.json({
+        success: true,
+        orderId: payment.provider_order_id,
         status: 'pending_review',
-        submitted_at: now,
-        reviewed_at: null,
-        reviewed_by: null,
-        review_note: null,
-        updated_at: now,
-      })
-      .eq('id', payment.id)
-      .eq('user_id', user.id);
-
-    if (updateError) {
-      await supabase.storage
-        .from('payment-proofs')
-        .remove([uploadedPath]);
-
-      uploadedPath = null;
-      throw updateError;
+        message:
+          'Bukti transfer berhasil dikirim dan menunggu verifikasi admin.',
+      });
     }
 
-    if (oldProofPath && oldProofPath !== uploadedPath) {
-      await supabase.storage
-        .from('payment-proofs')
-        .remove([oldProofPath]);
-    }
-
-    return NextResponse.json({
-      success: true,
-      orderId: payment.provider_order_id,
-      status: 'pending_review',
-      message:
-        'Bukti transfer berhasil dikirim dan menunggu verifikasi admin.',
-    });
+    return NextResponse.json(
+      { error: 'Action tidak valid.' },
+      { status: 400 },
+    );
   } catch (error) {
-    console.error('Upload payment proof error:', error);
+    console.error('Payment proof error:', error);
 
     return NextResponse.json(
       {
         error:
           error instanceof Error
             ? error.message
-            : 'Gagal mengunggah bukti transfer.',
+            : 'Gagal memproses bukti transfer.',
       },
       { status: 500 },
     );
