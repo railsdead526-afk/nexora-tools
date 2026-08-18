@@ -2,7 +2,18 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { ArrowRight, Check, Copy, Crown, FileImage, Loader2, ShieldCheck, Upload, WalletCards, X } from 'lucide-react';
+import {
+  ArrowRight,
+  Check,
+  Copy,
+  Crown,
+  FileImage,
+  Loader2,
+  ShieldCheck,
+  Upload,
+  WalletCards,
+  X,
+} from 'lucide-react';
 import { useUser } from '@/context/UserContext';
 
 type DanaOrder = {
@@ -13,6 +24,8 @@ type DanaOrder = {
   accountNumber: string;
 };
 
+const MAX_PROOF_SIZE = 2 * 1024 * 1024;
+
 function formatRupiah(value: number) {
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
@@ -21,54 +34,34 @@ function formatRupiah(value: number) {
   }).format(value);
 }
 
-function uploadProofRequest(
-  accessToken: string,
-  orderId: string,
-  proof: File,
-): Promise<void> {
+function readFileAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    const formData = new FormData();
+    const reader = new FileReader();
 
-    formData.set('orderId', orderId);
-    formData.set('proof', proof, proof.name);
-
-    xhr.open('POST', '/api/payments/proof', true);
-    xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
-    xhr.timeout = 60_000;
-
-    xhr.onload = () => {
-      let data: { error?: string } = {};
-      try {
-        data = xhr.responseText ? JSON.parse(xhr.responseText) : {};
-      } catch {}
-
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve();
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') {
+        reject(new Error('Gagal membaca file bukti transfer.'));
         return;
       }
 
-      reject(
-        new Error(
-          data.error || `Upload gagal dengan status HTTP ${xhr.status}.`,
-        ),
-      );
+      const commaIndex = reader.result.indexOf(',');
+      if (commaIndex < 0) {
+        reject(new Error('Format file tidak valid.'));
+        return;
+      }
+
+      resolve(reader.result.slice(commaIndex + 1));
     };
 
-    xhr.onerror = () =>
-      reject(
-        new Error(
-          'Koneksi upload gagal sebelum mencapai server. Coba lagi atau ganti jaringan.',
-        ),
-      );
+    reader.onerror = () => {
+      reject(new Error('Gagal membaca file dari perangkat.'));
+    };
 
-    xhr.ontimeout = () =>
-      reject(new Error('Upload terlalu lama dan dihentikan. Coba lagi.'));
+    reader.onabort = () => {
+      reject(new Error('Pembacaan file dibatalkan.'));
+    };
 
-    xhr.onabort = () =>
-      reject(new Error('Upload dibatalkan.'));
-
-    xhr.send(formData);
+    reader.readAsDataURL(file);
   });
 }
 
@@ -80,6 +73,7 @@ export default function CheckoutModal({
   onClose: () => void;
 }) {
   const { user, session, isPro } = useUser();
+
   const [order, setOrder] = useState<DanaOrder | null>(null);
   const [proof, setProof] = useState<File | null>(null);
   const [loadingOrder, setLoadingOrder] = useState(false);
@@ -89,6 +83,7 @@ export default function CheckoutModal({
 
   const proofLabel = useMemo(() => {
     if (!proof) return 'Pilih bukti transfer';
+
     return `${proof.name} • ${(proof.size / 1024 / 1024).toFixed(2)} MB`;
   }, [proof]);
 
@@ -114,7 +109,9 @@ export default function CheckoutModal({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data?.error || 'Gagal membuat order pembayaran.');
+        throw new Error(
+          data?.error || 'Gagal membuat order pembayaran.',
+        );
       }
 
       setOrder({
@@ -126,7 +123,9 @@ export default function CheckoutModal({
       });
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Gagal membuat order pembayaran.',
+        err instanceof Error
+          ? err.message
+          : 'Gagal membuat order pembayaran.',
       );
     } finally {
       setLoadingOrder(false);
@@ -166,8 +165,8 @@ export default function CheckoutModal({
       return;
     }
 
-    if (proof.size > 4 * 1024 * 1024) {
-      setError('Ukuran bukti transfer maksimal 4 MB.');
+    if (proof.size > MAX_PROOF_SIZE) {
+      setError('Ukuran bukti transfer maksimal 2 MB.');
       return;
     }
 
@@ -175,18 +174,45 @@ export default function CheckoutModal({
     setError('');
 
     try {
-      await uploadProofRequest(
-        session.access_token,
-        order.orderId,
-        proof,
-      );
+      const base64 = await readFileAsBase64(proof);
+
+      const response = await fetch('/api/payments/proof', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderId: order.orderId,
+          fileName: proof.name,
+          mimeType: proof.type,
+          dataBase64: base64,
+        }),
+      });
+
+      let data: { error?: string } = {};
+
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            `Upload gagal dengan status HTTP ${response.status}.`,
+        );
+      }
 
       window.location.assign(
         `/payment/finish?orderId=${encodeURIComponent(order.orderId)}`,
       );
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Gagal mengunggah bukti transfer.',
+        err instanceof Error
+          ? err.message
+          : 'Gagal mengunggah bukti transfer.',
       );
     } finally {
       setUploading(false);
@@ -284,6 +310,7 @@ export default function CheckoutModal({
               ) : (
                 <WalletCards className="h-4 w-4" />
               )}
+
               {loadingOrder ? 'Membuat order...' : 'Lanjut Pembayaran'}
             </button>
           </>
@@ -312,6 +339,7 @@ export default function CheckoutModal({
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                   Tujuan DANA
                 </p>
+
                 <p className="mt-1 text-xs font-bold text-white">
                   {order.accountName}
                 </p>
@@ -338,7 +366,8 @@ export default function CheckoutModal({
             </div>
 
             <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-[11px] leading-relaxed text-amber-200">
-              Transfer sesuai nominal yang tertera, lalu unggah screenshot bukti transaksi.
+              Transfer sesuai nominal yang tertera, lalu unggah screenshot
+              bukti transaksi. Maksimal 2 MB.
             </div>
 
             <label className="block cursor-pointer rounded-2xl border border-dashed border-slate-700 bg-slate-950 p-4 hover:border-slate-600">
@@ -383,6 +412,7 @@ export default function CheckoutModal({
               ) : (
                 <Upload className="h-4 w-4" />
               )}
+
               {uploading ? 'Mengunggah...' : 'Kirim Bukti Transfer'}
             </button>
           </>
