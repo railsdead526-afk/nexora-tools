@@ -24,7 +24,7 @@ type DanaOrder = {
   accountNumber: string;
 };
 
-const MAX_PROOF_SIZE = 2 * 1024 * 1024;
+const MAX_PROOF_SIZE = 3 * 1024 * 1024;
 
 function formatRupiah(value: number) {
   return new Intl.NumberFormat('id-ID', {
@@ -34,35 +34,37 @@ function formatRupiah(value: number) {
   }).format(value);
 }
 
-function readFileAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+async function readFileAsBase64(file: File): Promise<string> {
+  let buffer: ArrayBuffer;
 
-    reader.onload = () => {
-      if (typeof reader.result !== 'string') {
-        reject(new Error('Gagal membaca file bukti transfer.'));
-        return;
+  try {
+    buffer = await file.arrayBuffer();
+  } catch {
+    const objectUrl = URL.createObjectURL(file);
+
+    try {
+      const response = await fetch(objectUrl);
+
+      if (!response.ok) {
+        throw new Error('Browser gagal membaca file yang dipilih.');
       }
 
-      const commaIndex = reader.result.indexOf(',');
-      if (commaIndex < 0) {
-        reject(new Error('Format file tidak valid.'));
-        return;
-      }
+      buffer = await response.arrayBuffer();
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
 
-      resolve(reader.result.slice(commaIndex + 1));
-    };
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = '';
 
-    reader.onerror = () => {
-      reject(new Error('Gagal membaca file dari perangkat.'));
-    };
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    const chunk = bytes.subarray(offset, offset + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
 
-    reader.onabort = () => {
-      reject(new Error('Pembacaan file dibatalkan.'));
-    };
-
-    reader.readAsDataURL(file);
-  });
+  return btoa(binary);
 }
 
 export default function CheckoutModal({
@@ -166,7 +168,7 @@ export default function CheckoutModal({
     }
 
     if (proof.size > MAX_PROOF_SIZE) {
-      setError('Ukuran bukti transfer maksimal 2 MB.');
+      setError('Ukuran bukti transfer maksimal 3 MB.');
       return;
     }
 
@@ -367,7 +369,7 @@ export default function CheckoutModal({
 
             <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-[11px] leading-relaxed text-amber-200">
               Transfer sesuai nominal yang tertera, lalu unggah screenshot
-              bukti transaksi. Maksimal 2 MB.
+              bukti transaksi. Maksimal 3 MB.
             </div>
 
             <label className="block cursor-pointer rounded-2xl border border-dashed border-slate-700 bg-slate-950 p-4 hover:border-slate-600">
