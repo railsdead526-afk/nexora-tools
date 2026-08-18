@@ -79,16 +79,6 @@ function createPassword(
   return shuffle(characters).join('');
 }
 
-function sendDiagnostic(action: string) {
-  void fetch('/api/client-diagnostic', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      tool: 'password-generator',
-      action,
-    }),
-  }).catch(() => {});
-}
 
 export default function PasswordGeneratorPage() {
   const [length, setLength] = useState(20);
@@ -102,7 +92,7 @@ export default function PasswordGeneratorPage() {
   const [copied, setCopied] = useState(false);
 
   const generate = useCallback(
-    (report = true) => {
+    () => {
       try {
         const generated = createPassword(
           length,
@@ -115,10 +105,6 @@ export default function PasswordGeneratorPage() {
         setPassword(generated);
         setError('');
         setCopied(false);
-
-        if (report) {
-          sendDiagnostic(`generate-success-${generated.length}`);
-        }
       } catch (err) {
         const message =
           err instanceof Error
@@ -127,17 +113,13 @@ export default function PasswordGeneratorPage() {
 
         setPassword('');
         setError(message);
-
-        if (report) {
-          sendDiagnostic('generate-error');
-        }
       }
     },
     [length, useLower, useUpper, useNumbers, useSymbols],
   );
 
   useEffect(() => {
-    generate(false);
+    generate();
   }, [generate]);
 
   const handleCopy = async () => {
@@ -288,7 +270,7 @@ export default function PasswordGeneratorPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <button
             type="button"
-            onClick={() => generate(true)}
+            onClick={() => generate()}
             className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-xs font-black text-white hover:bg-emerald-500 transition-colors"
           >
             <RefreshCw className="w-4 h-4" />

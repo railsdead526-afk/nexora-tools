@@ -19,16 +19,6 @@ type Status = {
   message: string;
 } | null;
 
-function sendDiagnostic(action: string) {
-  void fetch('/api/client-diagnostic', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      tool: 'json-formatter',
-      action,
-    }),
-  }).catch(() => {});
-}
 
 export default function JsonFormatterPage() {
   const [input, setInput] = useState('');
@@ -55,8 +45,6 @@ export default function JsonFormatterPage() {
         type: 'success',
         message: 'JSON valid dan berhasil dirapikan.',
       });
-
-      sendDiagnostic(`format-success-${formatted.length}`);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'JSON tidak valid.';
@@ -67,7 +55,6 @@ export default function JsonFormatterPage() {
         message: `JSON tidak valid: ${message}`,
       });
 
-      sendDiagnostic('format-error');
     }
   };
 
@@ -80,8 +67,6 @@ export default function JsonFormatterPage() {
         type: 'success',
         message: 'JSON valid dan berhasil di-minify.',
       });
-
-      sendDiagnostic(`minify-success-${minified.length}`);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'JSON tidak valid.';
@@ -92,7 +77,6 @@ export default function JsonFormatterPage() {
         message: `JSON tidak valid: ${message}`,
       });
 
-      sendDiagnostic('minify-error');
     }
   };
 
@@ -105,8 +89,6 @@ export default function JsonFormatterPage() {
         type: 'success',
         message: 'JSON valid. Tidak ditemukan kesalahan sintaks.',
       });
-
-      sendDiagnostic(`validate-success-${formatted.length}`);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'JSON tidak valid.';
@@ -117,7 +99,6 @@ export default function JsonFormatterPage() {
         message: `JSON tidak valid: ${message}`,
       });
 
-      sendDiagnostic('validate-error');
     }
   };
 
