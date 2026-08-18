@@ -82,8 +82,27 @@ export default function PasswordGeneratorPage() {
   const [password, setPassword] = useState('');
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
+  const [hydrated, setHydrated] = useState(false);
+  const [lastAction, setLastAction] = useState('Belum ada tombol ditekan.');
 
-  const generate = () => {
+  const diagnostic = (action: string) => {
+    setLastAction(`Tombol ${action} berhasil menerima klik.`);
+
+    void fetch('/api/client-diagnostic', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tool: 'password-generator',
+        action,
+      }),
+    }).catch(() => {});
+  };
+
+  const generate = (sendDiagnostic = true) => {
+    if (sendDiagnostic) {
+      diagnostic('generate');
+    }
+
     const value = generateSecurePassword(
       length,
       useLower,
@@ -104,7 +123,8 @@ export default function PasswordGeneratorPage() {
   };
 
   useEffect(() => {
-    generate();
+    setHydrated(true);
+    generate(false);
     // Generate awal saja untuk menghindari password berubah sendiri saat render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -179,6 +199,19 @@ export default function PasswordGeneratorPage() {
         </p>
       </div>
 
+      <div className={`rounded-2xl border p-4 text-xs font-bold ${
+        hydrated
+          ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+          : 'border-amber-500/20 bg-amber-500/10 text-amber-300'
+      }`}>
+        <p>
+          JavaScript: {hydrated ? 'AKTIF' : 'MENUNGGU HYDRATION'}
+        </p>
+        <p className="mt-1 opacity-80">
+          {lastAction}
+        </p>
+      </div>
+
       <div className="rounded-3xl bg-slate-900/80 border border-slate-800 p-5 md:p-7 shadow-2xl space-y-6">
         <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
           <div className="flex items-start gap-3">
@@ -246,7 +279,7 @@ export default function PasswordGeneratorPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <button
             type="button"
-            onClick={generate}
+            onClick={() => generate()}
             className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-xs font-black text-white hover:bg-emerald-500 transition-colors"
           >
             <RefreshCw className="w-4 h-4" />

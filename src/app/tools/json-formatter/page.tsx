@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -21,6 +21,25 @@ export default function JsonFormatterPage() {
   const [output, setOutput] = useState('');
   const [status, setStatus] = useState<Status>(null);
   const [copied, setCopied] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+  const [lastAction, setLastAction] = useState('Belum ada tombol ditekan.');
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
+
+  const diagnostic = (action: string) => {
+    setLastAction(`Tombol ${action} berhasil menerima klik.`);
+
+    void fetch('/api/client-diagnostic', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tool: 'json-formatter',
+        action,
+      }),
+    }).catch(() => {});
+  };
 
   const parseInput = () => {
     if (!input.trim()) {
@@ -31,6 +50,8 @@ export default function JsonFormatterPage() {
   };
 
   const handleFormat = () => {
+    diagnostic('format');
+
     try {
       const parsed = parseInput();
       setOutput(JSON.stringify(parsed, null, 2));
@@ -51,6 +72,8 @@ export default function JsonFormatterPage() {
   };
 
   const handleMinify = () => {
+    diagnostic('minify');
+
     try {
       const parsed = parseInput();
       setOutput(JSON.stringify(parsed));
@@ -71,6 +94,8 @@ export default function JsonFormatterPage() {
   };
 
   const handleValidate = () => {
+    diagnostic('validate');
+
     try {
       parseInput();
       setStatus({
@@ -128,6 +153,19 @@ export default function JsonFormatterPage() {
         <p className="text-slate-400 text-xs md:text-sm leading-relaxed">
           Rapikan, minify, dan validasi JSON langsung di browser. Data tidak
           dikirim ke server.
+        </p>
+      </div>
+
+      <div className={`rounded-2xl border p-4 text-xs font-bold ${
+        hydrated
+          ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+          : 'border-amber-500/20 bg-amber-500/10 text-amber-300'
+      }`}>
+        <p>
+          JavaScript: {hydrated ? 'AKTIF' : 'MENUNGGU HYDRATION'}
+        </p>
+        <p className="mt-1 opacity-80">
+          {lastAction}
         </p>
       </div>
 
