@@ -47,6 +47,20 @@ class DownloaderRequest(BaseModel):
     isAudio: bool = False
 
 
+class WorkerError(Exception):
+    def __init__(
+        self,
+        message: str,
+        status_code: int,
+        code: str,
+        retryable: bool = False,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.code = code
+        self.retryable = retryable
+
+
 class YtDlpLogger:
     def __init__(self) -> None:
         self.errors: list[str] = []
@@ -170,15 +184,17 @@ def extract_info(raw_url: str) -> dict:
             safe_error_for_log(message),
         )
 
-        raise RuntimeError(clean_error(message)) from exc
+        raise worker_error_from_message(message) from exc
 
     if not isinstance(info, dict):
-        raise RuntimeError("Metadata video tidak ditemukan.")
+        raise WorkerError("Metadata video tidak ditemukan.", 502, "metadata_unavailable", True)
 
     duration = int(info.get("duration") or 0)
     if duration > MAX_DURATION_SECONDS:
-        raise RuntimeError(
-            f"Durasi video terlalu panjang. Maksimum {MAX_DURATION_SECONDS // 60} menit untuk worker ini."
+        raise WorkerError(
+            f"Durasi video terlalu panjang. Maksimum {MAX_DURATION_SECONDS // 60} menit untuk worker ini.",
+            422,
+            "duration_limit",
         )
 
     webpage_url = str(info.get("webpage_url") or raw_url)
@@ -204,21 +220,77 @@ def video_format_selector(height: int) -> str:
     )
 
 
-def clean_error(message: str) -> str:
+def worker_error_from_message(message: object) -> WorkerError:
     text = re.sub(r"\s+", " ", str(message)).strip()
     lowered = text.lower()
 
-    if "sign in to confirm" in lowered or "not a bot" in lowered or "captcha" in lowered:
-        return "Sumber video menolak akses worker cloud. Coba video publik lain atau ulangi beberapa saat lagi."
-    if "private video" in lowered or "video unavailable" in lowered:
-        return "Video tidak tersedia atau tidak bersifat publik."
-    if "unsupported url" in lowered:
-        return "URL ini belum didukung oleh downloader."
-    if "requested format is not available" in lowered:
-        return "Kualitas yang dipilih tidak tersedia untuk video ini."
+    if (
+        "sign in to confirm" in lowered
+        or "not a bot" in lowered
+        or "captcha" in lowered
+    ):
+        return WorkerError(
+            "YouTube sementara menolak akses dari server. Coba lagi nanti atau gunakan sumber video lain.",
+            503,
+            "upstream_auth_required",
+            True,
+        )
 
-    # Jangan bocorkan detail internal/path server ke frontend.
-    return text[:240] or "Worker gagal memproses video."
+    if "private video" in lowered or "video unavailable" in lowered:
+        return WorkerError(
+            "Video tidak tersedia atau tidak bersifat publik.",
+            404,
+            "video_unavailable",
+        )
+
+    if "unsupported url" in lowered:
+        return WorkerError(
+            "URL ini belum didukung oleh downloader.",
+            400,
+            "unsupported_url",
+        )
+
+    if "requested format is not available" in lowered:
+        return WorkerError(
+            "Kualitas yang dipilih tidak tersedia untuk video ini.",
+            400,
+            "format_unavailable",
+        )
+
+    if "timed out" in lowered or "timeout" in lowered:
+        return WorkerError(
+            "Sumber video tidak merespons tepat waktu. Coba lagi.",
+            504,
+            "upstream_timeout",
+            True,
+        )
+
+    if (
+        "429" in lowered
+        or "too many requests" in lowered
+        or "rate limit" in lowered
+    ):
+        return WorkerError(
+            "Sumber video sedang membatasi terlalu banyak permintaan. Coba lagi nanti.",
+            503,
+            "upstream_rate_limited",
+            True,
+        )
+
+    if "403" in lowered or "forbidden" in lowered:
+        return WorkerError(
+            "Sumber video menolak permintaan dari server.",
+            502,
+            "upstream_forbidden",
+            True,
+        )
+
+    return WorkerError(
+        "Sumber video gagal diproses oleh worker.",
+        502,
+        "upstream_error",
+        True,
+    )
 
 
 def download_media(raw_url: str, resolution: str, is_audio: bool) -> tuple[Path, Path]:
@@ -271,11 +343,11 @@ def download_media(raw_url: str, resolution: str, is_audio: bool) -> tuple[Path,
             if path.is_file() and path.suffix not in {".part", ".ytdl"}
         ]
         if not candidates:
-            raise RuntimeError("File hasil download tidak ditemukan.")
+            raise WorkerError("File hasil download tidak ditemukan.", 502, "output_missing", True)
 
         file_path = max(candidates, key=lambda path: path.stat().st_size)
         if file_path.stat().st_size > MAX_FILE_SIZE_BYTES:
-            raise RuntimeError(f"Ukuran file melebihi batas {MAX_FILE_SIZE_MB} MB.")
+            raise WorkerError(f"Ukuran file melebihi batas {MAX_FILE_SIZE_MB} MB.", 413, "file_too_large")
 
         safe_title = re.sub(r"[^A-Za-z0-9._ -]+", "", metadata["title"]).strip()[:80] or "nexora-video"
         final_name = f"{safe_title}{file_path.suffix.lower()}"
@@ -284,6 +356,9 @@ def download_media(raw_url: str, resolution: str, is_audio: bool) -> tuple[Path,
             file_path.rename(final_path)
 
         return job_dir, final_path
+    except WorkerError:
+        shutil.rmtree(job_dir, ignore_errors=True)
+        raise
     except Exception as exc:
         shutil.rmtree(job_dir, ignore_errors=True)
         message = logger.errors[-1] if logger.errors else str(exc)
@@ -294,7 +369,7 @@ def download_media(raw_url: str, resolution: str, is_audio: bool) -> tuple[Path,
             safe_error_for_log(message),
         )
 
-        raise RuntimeError(clean_error(message)) from exc
+        raise worker_error_from_message(message) from exc
 
 
 @app.get("/health")
@@ -348,10 +423,31 @@ async def downloader(
             "filename": file_path.name,
             "sizeBytes": file_path.stat().st_size,
         }
-    except RuntimeError as exc:
-        return JSONResponse({"success": False, "error": str(exc)}, status_code=422)
-    except Exception:
-        return JSONResponse({"success": False, "error": "Worker mengalami kesalahan internal."}, status_code=500)
+    except WorkerError as exc:
+        return JSONResponse(
+            {
+                "success": False,
+                "error": str(exc),
+                "code": exc.code,
+                "retryable": exc.retryable,
+            },
+            status_code=exc.status_code,
+        )
+    except Exception as exc:
+        APP_LOG.error(
+            "Unhandled downloader error type=%s detail=%s",
+            type(exc).__name__,
+            safe_error_for_log(exc),
+        )
+        return JSONResponse(
+            {
+                "success": False,
+                "error": "Worker mengalami kesalahan internal.",
+                "code": "internal_error",
+                "retryable": False,
+            },
+            status_code=500,
+        )
 
 
 @app.get("/files/{job_id}/{filename}")
