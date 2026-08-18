@@ -463,9 +463,15 @@ def serve_file(job_id: str, filename: str):
     if not file_path.is_file():
         raise HTTPException(status_code=404, detail="File sudah kedaluwarsa atau tidak ditemukan.")
 
-    media_type = "audio/mpeg" if file_path.suffix.lower() == ".mp3" else "video/mp4"
+    suffix = file_path.suffix.lower()
+    download_name = f"nexora-{job_id[:8]}{suffix}"
+
     return FileResponse(
         path=file_path,
-        filename=file_path.name,
-        media_type=media_type,
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": f'attachment; filename="{download_name}"',
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
     )
