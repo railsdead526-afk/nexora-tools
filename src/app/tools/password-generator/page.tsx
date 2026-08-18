@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -16,60 +16,78 @@ const UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const NUMBERS = '0123456789';
 const SYMBOLS = '!@#$%^&*()-_=+[]{};:,.?/';
 
-function secureRandomIndex(max: number): number {
-  if (max <= 0) return 0;
+function randomIndex(max: number): number {
+  if (
+    typeof globalThis.crypto === 'undefined' ||
+    typeof globalThis.crypto.getRandomValues !== 'function'
+  ) {
+    throw new Error('Web Crypto API tidak tersedia di browser ini.');
+  }
 
-  const range = 0x100000000;
-  const limit = Math.floor(range / max) * max;
-  const array = new Uint32Array(1);
+  const maxUint32 = 0x100000000;
+  const limit = Math.floor(maxUint32 / max) * max;
+  const values = new Uint32Array(1);
 
   do {
-    crypto.getRandomValues(array);
-  } while (array[0] >= limit);
+    globalThis.crypto.getRandomValues(values);
+  } while (values[0] >= limit);
 
-  return array[0] % max;
+  return values[0] % max;
 }
 
-function secureShuffle(chars: string[]): string[] {
-  const result = [...chars];
+function shuffle(values: string[]): string[] {
+  const result = [...values];
 
   for (let i = result.length - 1; i > 0; i--) {
-    const j = secureRandomIndex(i + 1);
+    const j = randomIndex(i + 1);
     [result[i], result[j]] = [result[j], result[i]];
   }
 
   return result;
 }
 
-function generateSecurePassword(
+function createPassword(
   length: number,
-  useLower: boolean,
-  useUpper: boolean,
-  useNumbers: boolean,
-  useSymbols: boolean,
+  lower: boolean,
+  upper: boolean,
+  numbers: boolean,
+  symbols: boolean,
 ): string {
   const groups: string[] = [];
 
-  if (useLower) groups.push(LOWER);
-  if (useUpper) groups.push(UPPER);
-  if (useNumbers) groups.push(NUMBERS);
-  if (useSymbols) groups.push(SYMBOLS);
+  if (lower) groups.push(LOWER);
+  if (upper) groups.push(UPPER);
+  if (numbers) groups.push(NUMBERS);
+  if (symbols) groups.push(SYMBOLS);
 
-  if (groups.length === 0) return '';
+  if (groups.length === 0) {
+    throw new Error('Pilih minimal satu jenis karakter.');
+  }
 
-  const finalLength = Math.max(length, groups.length);
-  const allChars = groups.join('');
-  const chars: string[] = [];
+  const characters: string[] = [];
 
   for (const group of groups) {
-    chars.push(group[secureRandomIndex(group.length)]);
+    characters.push(group[randomIndex(group.length)]);
   }
 
-  while (chars.length < finalLength) {
-    chars.push(allChars[secureRandomIndex(allChars.length)]);
+  const pool = groups.join('');
+
+  while (characters.length < length) {
+    characters.push(pool[randomIndex(pool.length)]);
   }
 
-  return secureShuffle(chars).join('');
+  return shuffle(characters).join('');
+}
+
+function sendDiagnostic(action: string) {
+  void fetch('/api/client-diagnostic', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      tool: 'password-generator',
+      action,
+    }),
+  }).catch(() => {});
 }
 
 export default function PasswordGeneratorPage() {
@@ -80,61 +98,58 @@ export default function PasswordGeneratorPage() {
   const [useSymbols, setUseSymbols] = useState(true);
 
   const [password, setPassword] = useState('');
-  const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
-  const [hydrated, setHydrated] = useState(false);
-  const [lastAction, setLastAction] = useState('Belum ada tombol ditekan.');
+  const [copied, setCopied] = useState(false);
 
-  const diagnostic = (action: string) => {
-    setLastAction(`Tombol ${action} berhasil menerima klik.`);
+  const generate = useCallback(
+    (report = true) => {
+      try {
+        const generated = createPassword(
+          length,
+          useLower,
+          useUpper,
+          useNumbers,
+          useSymbols,
+        );
 
-    void fetch('/api/client-diagnostic', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tool: 'password-generator',
-        action,
-      }),
-    }).catch(() => {});
-  };
+        setPassword(generated);
+        setError('');
+        setCopied(false);
 
-  const generate = (sendDiagnostic = true) => {
-    if (sendDiagnostic) {
-      diagnostic('generate');
-    }
+        if (report) {
+          sendDiagnostic(`generate-success-${generated.length}`);
+        }
+      } catch (err) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : 'Password gagal dibuat.';
 
-    const value = generateSecurePassword(
-      length,
-      useLower,
-      useUpper,
-      useNumbers,
-      useSymbols,
-    );
+        setPassword('');
+        setError(message);
 
-    if (!value) {
-      setPassword('');
-      setError('Pilih minimal satu jenis karakter.');
-      return;
-    }
-
-    setError('');
-    setCopied(false);
-    setPassword(value);
-  };
+        if (report) {
+          sendDiagnostic('generate-error');
+        }
+      }
+    },
+    [length, useLower, useUpper, useNumbers, useSymbols],
+  );
 
   useEffect(() => {
-    setHydrated(true);
     generate(false);
-    // Generate awal saja untuk menghindari password berubah sendiri saat render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [generate]);
 
   const handleCopy = async () => {
     if (!password) return;
 
-    await navigator.clipboard.writeText(password);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
+    try {
+      await navigator.clipboard.writeText(password);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setError('Browser tidak mengizinkan akses clipboard.');
+    }
   };
 
   const enabledGroups =
@@ -144,9 +159,9 @@ export default function PasswordGeneratorPage() {
     Number(useSymbols);
 
   const strength =
-    length >= 20 && enabledGroups >= 3
+    password.length >= 24 && enabledGroups >= 3
       ? 'Sangat Kuat'
-      : length >= 14 && enabledGroups >= 2
+      : password.length >= 16 && enabledGroups >= 2
         ? 'Kuat'
         : 'Sedang';
 
@@ -183,7 +198,7 @@ export default function PasswordGeneratorPage() {
         Kembali ke Katalog
       </Link>
 
-      <div className="space-y-2">
+      <header className="space-y-2">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
           <ShieldCheck className="w-3.5 h-3.5" />
           Security Tool
@@ -194,38 +209,26 @@ export default function PasswordGeneratorPage() {
         </h1>
 
         <p className="text-slate-400 text-xs md:text-sm leading-relaxed">
-          Buat password acak menggunakan Web Crypto API langsung di perangkat.
-          Password tidak dikirim atau disimpan oleh Nexora.
+          Buat password acak menggunakan Web Crypto API langsung di
+          perangkat. Password tidak dikirim atau disimpan oleh Nexora.
         </p>
-      </div>
+      </header>
 
-      <div className={`rounded-2xl border p-4 text-xs font-bold ${
-        hydrated
-          ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
-          : 'border-amber-500/20 bg-amber-500/10 text-amber-300'
-      }`}>
-        <p>
-          JavaScript: {hydrated ? 'AKTIF' : 'MENUNGGU HYDRATION'}
-        </p>
-        <p className="mt-1 opacity-80">
-          {lastAction}
-        </p>
-      </div>
-
-      <div className="rounded-3xl bg-slate-900/80 border border-slate-800 p-5 md:p-7 shadow-2xl space-y-6">
+      <section className="rounded-3xl bg-slate-900/80 border border-slate-800 p-5 md:p-7 shadow-2xl space-y-6">
         <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
           <div className="flex items-start gap-3">
             <Key className="w-5 h-5 mt-0.5 text-emerald-400 shrink-0" />
 
             <div className="min-w-0 flex-1">
-              <p className="break-all font-mono text-sm md:text-base text-white">
-                {password || 'Pilih jenis karakter lalu generate password.'}
+              <p className="break-all font-mono text-sm md:text-base text-white min-h-6">
+                {password || 'Belum ada password.'}
               </p>
 
               {password && (
-                <p className="mt-2 text-[11px] font-bold text-emerald-400">
-                  Kekuatan: {strength}
-                </p>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-bold text-emerald-400">
+                  <span>Kekuatan: {strength}</span>
+                  <span>Panjang aktual: {password.length}</span>
+                </div>
               )}
             </div>
           </div>
@@ -234,7 +237,9 @@ export default function PasswordGeneratorPage() {
         <div className="space-y-3">
           <div className="flex justify-between text-xs font-bold">
             <span className="text-slate-300">Panjang Password</span>
-            <span className="text-emerald-400">{length} karakter</span>
+            <span className="text-emerald-400">
+              {length} karakter
+            </span>
           </div>
 
           <input
@@ -242,7 +247,9 @@ export default function PasswordGeneratorPage() {
             min="8"
             max="64"
             value={length}
-            onChange={(event) => setLength(Number(event.target.value))}
+            onChange={(event) =>
+              setLength(Number(event.target.value))
+            }
             className="w-full accent-emerald-500"
           />
 
@@ -258,12 +265,14 @@ export default function PasswordGeneratorPage() {
               key={option.label}
               className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-800 bg-slate-950 p-3 text-xs font-bold text-slate-300"
             >
-              {option.label}
+              <span>{option.label}</span>
 
               <input
                 type="checkbox"
                 checked={option.value}
-                onChange={(event) => option.setter(event.target.checked)}
+                onChange={(event) =>
+                  option.setter(event.target.checked)
+                }
                 className="h-4 w-4 accent-emerald-500"
               />
             </label>
@@ -279,7 +288,7 @@ export default function PasswordGeneratorPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <button
             type="button"
-            onClick={() => generate()}
+            onClick={() => generate(true)}
             className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-xs font-black text-white hover:bg-emerald-500 transition-colors"
           >
             <RefreshCw className="w-4 h-4" />
@@ -297,16 +306,17 @@ export default function PasswordGeneratorPage() {
             ) : (
               <Copy className="w-4 h-4" />
             )}
+
             {copied ? 'Password Tersalin' : 'Salin Password'}
           </button>
         </div>
 
         <div className="rounded-2xl border border-emerald-500/10 bg-emerald-500/5 p-4 text-[11px] leading-relaxed text-emerald-300">
-          Generator menggunakan <strong>crypto.getRandomValues()</strong>,
-          bukan Math.random(), sehingga cocok untuk membuat password yang
-          membutuhkan sumber angka acak kriptografis.
+          Password dibuat menggunakan sumber angka acak kriptografis
+          <strong> crypto.getRandomValues()</strong>. Isi password tidak
+          dikirim ke endpoint diagnostic.
         </div>
-      </div>
+      </section>
     </div>
   );
 }
