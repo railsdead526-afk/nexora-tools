@@ -336,13 +336,38 @@ def download_media(raw_url: str, resolution: str, is_audio: bool) -> tuple[Path,
         with yt_dlp.YoutubeDL(options) as ydl:
             ydl.download([raw_url])
 
-        candidates = [
+        all_candidates = [
             path
             for path in job_dir.iterdir()
-            if path.is_file() and path.suffix not in {".part", ".ytdl"}
+            if path.is_file() and path.suffix.lower() not in {".part", ".ytdl"}
         ]
-        if not candidates:
-            raise WorkerError("File hasil download tidak ditemukan.", 502, "output_missing", True)
+
+        if is_audio or resolution == "mp3":
+            candidates = [
+                path for path in all_candidates
+                if path.suffix.lower() == ".mp3"
+            ]
+
+            if not candidates:
+                raise WorkerError(
+                    "Konversi audio MP3 tidak menghasilkan file.",
+                    502,
+                    "audio_conversion_failed",
+                    True,
+                )
+        else:
+            candidates = [
+                path for path in all_candidates
+                if path.suffix.lower() in {".mp4", ".webm", ".mkv", ".mov"}
+            ]
+
+            if not candidates:
+                raise WorkerError(
+                    "File video hasil download tidak ditemukan.",
+                    502,
+                    "output_missing",
+                    True,
+                )
 
         file_path = max(candidates, key=lambda path: path.stat().st_size)
         if file_path.stat().st_size > MAX_FILE_SIZE_BYTES:
