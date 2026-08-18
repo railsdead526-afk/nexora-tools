@@ -16,7 +16,6 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
-from starlette.background import BackgroundTask
 import yt_dlp
 
 APP_LOG = logging.getLogger("nexora.downloader")
@@ -469,5 +468,4 @@ def serve_file(job_id: str, filename: str):
         path=file_path,
         filename=file_path.name,
         media_type=media_type,
-        background=BackgroundTask(shutil.rmtree, job_dir, ignore_errors=True),
     )
