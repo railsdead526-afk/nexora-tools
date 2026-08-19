@@ -1,5 +1,5 @@
-import NexoraAIChat from '@/components/nexora-ai/NexoraAIChat';
+import NexoraAIChatDb from '@/components/nexora-ai/NexoraAIChatDb';
 
 export default function NexoraAIChatPage() {
-  return <NexoraAIChat />;
+  return <NexoraAIChatDb />;
 }
