@@ -3,14 +3,17 @@
 import { FormEvent, useState } from 'react';
 import { Menu, Send } from 'lucide-react';
 
+export const metadata = {
+  title: 'Chat',
+  description: 'Ruang percakapan Nexora Tools.',
+};
+
 export default function ChatPage() {
   const [message, setMessage] = useState('');
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!message.trim()) return;
-
-    // AI conversation wiring can be connected here later.
     setMessage('');
   };
 
