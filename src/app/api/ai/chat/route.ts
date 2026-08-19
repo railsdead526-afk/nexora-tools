@@ -29,19 +29,10 @@ export async function POST(request: Request) {
     }
 
     const supabase = createSupabaseAdminClient();
-    const { data: conversation, error: conversationError } = await supabase
-      .from('ai_conversations')
-      .select('id,title')
-      .eq('id', conversationId)
-      .eq('user_id', user.id)
-      .single();
+    const { data: conversation, error: conversationError } = await supabase.from('ai_conversations').select('id,title').eq('id', conversationId).eq('user_id', user.id).single();
     if (conversationError || !conversation) return NextResponse.json({ error: 'Conversation tidak ditemukan.' }, { status: 404 });
 
-    const { data: storedMessages, error: messagesError } = await supabase
-      .from('ai_messages')
-      .select('role,content,created_at')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true });
+    const { data: storedMessages, error: messagesError } = await supabase.from('ai_messages').select('role,content,created_at').eq('conversation_id', conversationId).order('created_at', { ascending: true });
     if (messagesError) return NextResponse.json({ error: 'Gagal membaca riwayat chat.' }, { status: 500 });
 
     const history = (storedMessages ?? []).map((message) => ({ role: message.role as 'user' | 'assistant' | 'system', content: message.content }));
@@ -73,15 +64,27 @@ export async function POST(request: Request) {
             if (chunk.type === 'text' && chunk.text) {
               assistantText += chunk.text;
               controller.enqueue(encoder.encode(chunk.text));
+              continue;
+            }
+            if (chunk.type === 'error') {
+              const safeError = chunk.error || 'NexoraAI gagal mendapatkan respons dari provider.';
+              console.error('AI provider error:', safeError);
+              controller.enqueue(encoder.encode(`\n\nNexoraAI error: ${safeError}`));
+              controller.close();
+              return;
             }
           }
           if (assistantText.trim() && !request.signal.aborted) {
-            await supabase.from('ai_messages').insert({ conversation_id: conversationId, role: 'assistant', content: assistantText });
+            const { error: saveError } = await supabase.from('ai_messages').insert({ conversation_id: conversationId, role: 'assistant', content: assistantText });
+            if (saveError) console.error('AI assistant message save error:', saveError.message);
           }
           if (!request.signal.aborted) controller.close();
         } catch (error) {
           console.error('AI stream error:', error);
-          if (!request.signal.aborted) controller.error(error);
+          if (!request.signal.aborted) {
+            controller.enqueue(encoder.encode(`\n\nNexoraAI error: ${error instanceof Error ? error.message : 'Gagal memproses streaming AI.'}`));
+            controller.close();
+          }
         }
       },
     });
