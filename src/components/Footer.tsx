@@ -1,35 +1,10 @@
 import Link from 'next/link';
-import { Sparkles, Shield, Lock } from 'lucide-react';
+import { Sparkles, Shield, Lock, Bot } from 'lucide-react';
 
 export default function Footer() {
-  return (
-    <footer className="border-t border-slate-900 bg-slate-950/80 backdrop-blur-md mt-20">
-      <div className="max-w-6xl mx-auto px-4 py-12 space-y-8">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-indigo-500 to-amber-400 p-[1px]">
-              <div className="w-full h-full bg-slate-950 rounded-[6px] flex items-center justify-center">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              </div>
-            </div>
-            <span className="text-base font-black tracking-wider text-white">
-              NEXORA<span className="text-indigo-500">.</span>
-            </span>
-          </div>
-
-          <div className="flex flex-wrap justify-center gap-6 text-xs text-slate-400">
-            <Link href="/" className="hover:text-white transition-colors">Semua Tools</Link>
-            <Link href="/pricing" className="hover:text-amber-400 transition-colors">Nexora Pro</Link>
-            <span className="text-slate-600">|</span>
-            <span className="flex items-center gap-1"><Shield className="w-3.5 h-3.5 text-emerald-400" /> 100% Client-Side Safe</span>
-            <span className="flex items-center gap-1"><Lock className="w-3.5 h-3.5 text-indigo-400" /> No Data Stored</span>
-          </div>
-        </div>
-
-        <div className="border-t border-slate-900/80 pt-6 text-center text-xs text-slate-600">
-          <p>© {new Date().getFullYear()} Nexora Tools Hub. All rights reserved. Built for creators & pros.</p>
-        </div>
-      </div>
-    </footer>
-  );
+  return <footer className="mt-20 border-t border-white/[0.07] bg-[#070707]/90 backdrop-blur-xl"><div className="mx-auto max-w-6xl space-y-8 px-4 py-12">
+    <div className="flex flex-col items-center justify-between gap-6 md:flex-row"><div className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-500 text-black shadow-lg shadow-orange-500/15"><Sparkles className="h-3.5 w-3.5" /></div><span className="text-base font-black tracking-[0.12em] text-white">NEXORA<span className="text-orange-500">.</span></span></div>
+    <div className="flex flex-wrap justify-center gap-6 text-xs text-zinc-500"><Link href="/" className="transition hover:text-orange-400">Semua Tools</Link><Link href="/nexora-ai" className="flex items-center gap-1.5 transition hover:text-orange-400"><Bot className="h-3.5 w-3.5 text-orange-500" /> NexoraAI</Link><Link href="/pricing" className="transition hover:text-orange-400">Nexora Pro</Link><span className="text-zinc-800">|</span><span className="flex items-center gap-1"><Shield className="h-3.5 w-3.5 text-orange-500/70" /> Client-Side Safe</span><span className="flex items-center gap-1"><Lock className="h-3.5 w-3.5 text-orange-500/70" /> No Data Stored</span></div></div>
+    <div className="border-t border-white/[0.06] pt-6 text-center text-xs text-zinc-700"><p>© {new Date().getFullYear()} Nexora Tools Hub. All rights reserved. Built for creators & pros.</p></div>
+  </div></footer>;
 }
