@@ -1,8 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
-import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
+import AppShell from '@/components/AppShell';
 import { UserProvider } from '@/context/UserContext';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -58,9 +57,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="id" className="dark">
       <body className={`${inter.className} bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-indigo-500 selection:text-white`}>
         <UserProvider>
-          <Navbar />
-          <main className="flex-1 bg-slate-950">{children}</main>
-          <Footer />
+          <AppShell>{children}</AppShell>
         </UserProvider>
       </body>
     </html>
