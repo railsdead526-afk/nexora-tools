@@ -18,6 +18,16 @@ function normalize(item: ApiConversation): Conversation {
   return { id: item.id, title: item.title, updatedAt: new Date(item.updated_at).getTime(), messages };
 }
 
+function AIThinkingIndicator() {
+  return (
+    <span className="inline-flex items-center gap-1.5 py-1" role="status" aria-label="NexoraAI sedang berpikir">
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#8b6ccf] [animation-delay:-0.24s]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#b9a8df] [animation-delay:-0.12s]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#c65a16]" />
+    </span>
+  );
+}
+
 type SidebarProps = { open: boolean; conversations: Conversation[]; activeId: string; loadingHistory: boolean; onClose: () => void; onNewChat: () => void; onSelect: (id: string) => void; onDelete: (id: string) => void };
 
 function ChatSidebar({ open, conversations, activeId, loadingHistory, onClose, onNewChat, onSelect, onDelete }: SidebarProps) {
@@ -132,7 +142,7 @@ export default function NexoraAIChatDb() {
         <section className="flex-1 overflow-y-auto py-8">
           {error && <div className="mb-5 rounded-2xl border border-red-500/15 bg-red-500/[0.03] p-3.5 text-xs leading-5 text-red-300">{error}</div>}
           {!loadingHistory && messages.length === 0 && <div className="flex min-h-[55vh] flex-col items-center justify-center text-center"><div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border border-[#8b6ccf]/20 bg-[#8b6ccf]/[0.06] shadow-[0_0_40px_rgba(139,108,207,0.08)]"><Sparkles className="h-5 w-5 text-[#8b6ccf]" /></div><h1 className="bg-gradient-to-r from-zinc-100 via-[#cfc4ee] to-[#c65a16] bg-clip-text text-2xl font-bold tracking-tight text-transparent sm:text-3xl">Apa yang ingin kamu kerjakan?</h1><p className="mt-3 max-w-md text-sm leading-6 text-zinc-500">Tulis ide, pertanyaan, atau pekerjaan yang ingin kamu selesaikan bersama NexoraAI.</p></div>}
-          {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`mb-4 flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[92%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${message.role === 'user' ? 'bg-[#c65a16] text-white shadow-[#c65a16]/10' : 'border border-white/[0.07] bg-white/[0.025] text-zinc-200'}`}>{message.content || <Loader2 className="h-4 w-4 animate-spin text-[#c65a16]" />}</div></div>)}
+          {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`mb-7 flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`${message.role === 'user' ? 'max-w-[92%] rounded-2xl bg-[#c65a16] px-4 py-3 text-white shadow-sm shadow-[#c65a16]/10' : 'max-w-[96%] text-zinc-200'} whitespace-pre-wrap text-sm leading-7`}>{message.content || <AIThinkingIndicator />}</div></div>)}
         </section>
         <div className="sticky bottom-0 pb-4 pt-2"><div className="flex items-end gap-2 rounded-2xl border border-white/10 bg-[#0a0a0a]/95 p-2 shadow-2xl shadow-black/30 backdrop-blur-xl transition focus-within:border-white/15"><button type="button" disabled={loading} className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 text-zinc-500 transition hover:bg-white/[0.04] hover:text-zinc-200 disabled:opacity-30" aria-label="Lampirkan file"><Plus className="h-5 w-5" /></button><textarea ref={inputRef} value={prompt} rows={1} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }} placeholder="Tanya NexoraAI..." className="max-h-32 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-2 py-2.5 text-sm leading-5 text-zinc-100 outline-none placeholder:text-zinc-600" /><button type="button" onClick={() => void sendMessage()} disabled={!prompt.trim() || loading} className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#c65a16] text-white shadow-lg shadow-[#c65a16]/10 transition hover:bg-[#d16a27] disabled:cursor-not-allowed disabled:opacity-30" aria-label="Kirim"><ArrowUp className="h-5 w-5" /></button></div><p className="mt-2 text-center text-[10px] text-zinc-700">NexoraAI dapat membuat kesalahan. Periksa informasi penting.</p></div>
       </main>
