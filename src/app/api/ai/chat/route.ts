@@ -66,18 +66,22 @@ export async function POST(request: Request) {
         try {
           const orchestrator = getAIOrchestrator();
           for await (const chunk of orchestrator.chat(input)) {
+            if (request.signal.aborted) {
+              controller.close();
+              return;
+            }
             if (chunk.type === 'text' && chunk.text) {
               assistantText += chunk.text;
               controller.enqueue(encoder.encode(chunk.text));
             }
           }
-          if (assistantText.trim()) {
+          if (assistantText.trim() && !request.signal.aborted) {
             await supabase.from('ai_messages').insert({ conversation_id: conversationId, role: 'assistant', content: assistantText });
           }
-          controller.close();
+          if (!request.signal.aborted) controller.close();
         } catch (error) {
           console.error('AI stream error:', error);
-          controller.error(error);
+          if (!request.signal.aborted) controller.error(error);
         }
       },
     });
@@ -86,6 +90,7 @@ export async function POST(request: Request) {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'Cache-Control': 'no-cache, no-transform',
+        'X-Accel-Buffering': 'no',
         'X-Content-Type-Options': 'nosniff',
       },
     });
