@@ -1,6 +1,6 @@
 import { MetadataRoute } from 'next';
 
-const siteUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nexora-tools-p2ml-git-main-nexora-bcbb.vercel.app').replace(/\/$/, '');
+const siteUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nexora-tools-nexora-bcbb.vercel.app').replace(/\/$/, '');
 
 export default function robots(): MetadataRoute.Robots {
   return {
