@@ -31,6 +31,26 @@ function PaymentFinishContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const reconcileMidtrans = useCallback(async () => {
+    if (!session?.access_token || !orderId) return;
+
+    const response = await fetch(
+      `/api/payments/midtrans/status?orderId=${encodeURIComponent(orderId)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        cache: 'no-store',
+      },
+    );
+
+    if (!response.ok) return;
+    const data = await response.json();
+    if (data?.status === 'paid') {
+      await refreshStatus();
+    }
+  }, [orderId, refreshStatus, session?.access_token]);
+
   const loadStatus = useCallback(async () => {
     if (!session?.access_token || !orderId) {
       setLoading(false);
@@ -41,6 +61,8 @@ function PaymentFinishContent() {
     setError('');
 
     try {
+      await reconcileMidtrans();
+
       const response = await fetch(
         `/api/payments/status?orderId=${encodeURIComponent(orderId)}`,
         {
@@ -69,7 +91,7 @@ function PaymentFinishContent() {
     } finally {
       setLoading(false);
     }
-  }, [orderId, refreshStatus, session?.access_token]);
+  }, [orderId, reconcileMidtrans, refreshStatus, session?.access_token]);
 
   useEffect(() => {
     void loadStatus();
