@@ -1,7 +1,7 @@
 import { MetadataRoute } from 'next';
 import { TOOLS_DATA } from '@/config/tools';
 
-const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nexora-tools-p2ml-git-main-nexora-bcbb.vercel.app').replace(/\/$/, '');
+const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nexora-tools-nexora-bcbb.vercel.app').replace(/\/$/, '');
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const currentDate = new Date();
