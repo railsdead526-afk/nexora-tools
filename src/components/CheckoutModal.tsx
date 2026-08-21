@@ -1,37 +1,27 @@
 'use client';
 
 import Link from 'next/link';
-import { createClient } from '@supabase/supabase-js';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import {
   ArrowRight,
-  Check,
-  Copy,
+  CheckCircle2,
   Crown,
-  FileImage,
   Loader2,
   ShieldCheck,
-  Upload,
   WalletCards,
   X,
 } from 'lucide-react';
 import { useUser } from '@/context/UserContext';
 
-type DanaOrder = {
+type MidtransOrder = {
   orderId: string;
   amount: number;
   status: string;
-  accountName: string;
-  accountNumber: string;
+  checkout?: {
+    token?: string;
+    redirectUrl?: string;
+  } | null;
 };
-
-type PrepareResponse = {
-  path?: string;
-  token?: string;
-  error?: string;
-};
-
-const MAX_PROOF_SIZE = 3 * 1024 * 1024;
 
 function formatRupiah(value: number) {
   return new Intl.NumberFormat('id-ID', {
@@ -39,25 +29,6 @@ function formatRupiah(value: number) {
     currency: 'IDR',
     maximumFractionDigits: 0,
   }).format(value);
-}
-
-function getStorageClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!url || !key) {
-    throw new Error('Konfigurasi Supabase publik belum tersedia.');
-  }
-
-  return createClient(url, key, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-  });
 }
 
 export default function CheckoutModal({
@@ -69,18 +40,9 @@ export default function CheckoutModal({
 }) {
   const { user, session, isPro } = useUser();
 
-  const [order, setOrder] = useState<DanaOrder | null>(null);
-  const [proof, setProof] = useState<File | null>(null);
+  const [order, setOrder] = useState<MidtransOrder | null>(null);
   const [loadingOrder, setLoadingOrder] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
-
-  const proofLabel = useMemo(() => {
-    if (!proof) return 'Pilih bukti transfer';
-
-    return `${proof.name} • ${(proof.size / 1024 / 1024).toFixed(2)} MB`;
-  }, [proof]);
 
   if (!isOpen) return null;
 
@@ -94,7 +56,7 @@ export default function CheckoutModal({
     setError('');
 
     try {
-      const response = await fetch('/api/payments/create', {
+      const response = await fetch('/api/payments/midtrans/create', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -105,148 +67,33 @@ export default function CheckoutModal({
 
       if (!response.ok) {
         throw new Error(
-          data?.error || 'Gagal membuat order pembayaran.',
+          data?.error || 'Gagal membuat pembayaran Midtrans.',
         );
       }
 
-      setOrder({
+      const nextOrder: MidtransOrder = {
         orderId: data.orderId,
         amount: data.amount,
         status: data.status,
-        accountName: data.accountName,
-        accountNumber: data.accountNumber,
-      });
+        checkout: data.checkout,
+      };
+
+      setOrder(nextOrder);
+
+      const redirectUrl = nextOrder.checkout?.redirectUrl;
+      if (!redirectUrl) {
+        throw new Error('Link checkout Midtrans tidak tersedia.');
+      }
+
+      window.location.assign(redirectUrl);
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : 'Gagal membuat order pembayaran.',
+          : 'Gagal membuat pembayaran Midtrans.',
       );
     } finally {
       setLoadingOrder(false);
-    }
-  };
-
-  const copyDanaNumber = async () => {
-    if (!order?.accountNumber) return;
-
-    try {
-      await navigator.clipboard.writeText(order.accountNumber);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
-    } catch {
-      setError('Browser tidak mengizinkan akses clipboard.');
-    }
-  };
-
-  const uploadProof = async () => {
-    if (!session?.access_token) {
-      setError('Sesi login tidak ditemukan. Silakan login ulang.');
-      return;
-    }
-
-    if (!order) {
-      setError('Order pembayaran tidak ditemukan.');
-      return;
-    }
-
-    if (!proof) {
-      setError('Pilih bukti transfer terlebih dahulu.');
-      return;
-    }
-
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(proof.type)) {
-      setError('Bukti transfer harus berupa JPG, PNG, atau WebP.');
-      return;
-    }
-
-    if (proof.size > MAX_PROOF_SIZE) {
-      setError('Ukuran bukti transfer maksimal 3 MB.');
-      return;
-    }
-
-    setUploading(true);
-    setError('');
-
-    try {
-      // 1. Minta signed upload token. Request ini kecil dan tidak membawa file.
-      const prepareResponse = await fetch('/api/payments/proof', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'prepare',
-          orderId: order.orderId,
-          mimeType: proof.type,
-          size: proof.size,
-        }),
-      });
-
-      const prepared = (await prepareResponse.json()) as PrepareResponse;
-
-      if (!prepareResponse.ok || !prepared.path || !prepared.token) {
-        throw new Error(
-          prepared.error || 'Gagal menyiapkan upload bukti transfer.',
-        );
-      }
-
-      // 2. File dikirim langsung ke Supabase Storage, tidak melewati Vercel.
-      const bytes = await proof.arrayBuffer();
-      const storage = getStorageClient();
-
-      const { error: storageError } = await storage.storage
-        .from('payment-proofs')
-        .uploadToSignedUrl(
-          prepared.path,
-          prepared.token,
-          bytes,
-          {
-            contentType: proof.type,
-            cacheControl: '3600',
-          },
-        );
-
-      if (storageError) {
-        throw new Error(
-          storageError.message || 'Upload ke penyimpanan gagal.',
-        );
-      }
-
-      // 3. Beri tahu backend untuk memverifikasi file lalu ubah status.
-      const finalizeResponse = await fetch('/api/payments/proof', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'finalize',
-          orderId: order.orderId,
-          path: prepared.path,
-        }),
-      });
-
-      const finalized = await finalizeResponse.json();
-
-      if (!finalizeResponse.ok) {
-        throw new Error(
-          finalized?.error || 'Gagal menyelesaikan verifikasi upload.',
-        );
-      }
-
-      window.location.assign(
-        `/payment/finish?orderId=${encodeURIComponent(order.orderId)}`,
-      );
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Gagal mengunggah bukti transfer.',
-      );
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -296,17 +143,17 @@ export default function CheckoutModal({
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
-        ) : !order ? (
+        ) : (
           <>
             <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950 p-4">
               <div className="flex items-start gap-3">
                 <WalletCards className="mt-0.5 h-5 w-5 shrink-0 text-sky-400" />
                 <div>
                   <p className="text-xs font-bold text-white">
-                    Transfer manual via DANA
+                    Pembayaran aman via Midtrans
                   </p>
                   <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
-                    Sistem akan membuat order resmi terlebih dahulu.
+                    Kamu akan diarahkan ke halaman checkout Midtrans untuk memilih metode pembayaran.
                   </p>
                 </div>
               </div>
@@ -315,14 +162,30 @@ export default function CheckoutModal({
                 <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
                 <div>
                   <p className="text-xs font-bold text-white">
-                    Verifikasi bukti transfer
+                    Aktivasi otomatis
                   </p>
                   <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
-                    PRO aktif setelah bukti transfer disetujui admin.
+                    PRO aktif setelah pembayaran berhasil diverifikasi oleh Midtrans.
                   </p>
                 </div>
               </div>
             </div>
+
+            {order && (
+              <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />
+                  <div>
+                    <p className="text-xs font-bold text-white">
+                      Order siap
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      {order.orderId} • {formatRupiah(order.amount)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {error && (
               <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
@@ -342,109 +205,7 @@ export default function CheckoutModal({
                 <WalletCards className="h-4 w-4" />
               )}
 
-              {loadingOrder ? 'Membuat order...' : 'Lanjut Pembayaran'}
-            </button>
-          </>
-        ) : (
-          <>
-            <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950 p-4">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  Order ID
-                </p>
-                <p className="mt-1 break-all font-mono text-xs text-slate-300">
-                  {order.orderId}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  Nominal transfer
-                </p>
-                <p className="mt-1 text-xl font-black text-amber-400">
-                  {formatRupiah(order.amount)}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  Tujuan DANA
-                </p>
-
-                <p className="mt-1 text-xs font-bold text-white">
-                  {order.accountName}
-                </p>
-
-                <div className="mt-2 flex items-center gap-2">
-                  <code className="min-w-0 flex-1 break-all rounded-xl border border-slate-800 bg-slate-900 px-3 py-2.5 text-sm font-bold text-sky-300">
-                    {order.accountNumber}
-                  </code>
-
-                  <button
-                    type="button"
-                    onClick={copyDanaNumber}
-                    className="rounded-xl border border-slate-700 bg-slate-800 p-2.5 text-slate-300 hover:text-white"
-                    aria-label="Salin nomor DANA"
-                  >
-                    {copied ? (
-                      <Check className="h-4 w-4 text-emerald-400" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-[11px] leading-relaxed text-amber-200">
-              Transfer sesuai nominal yang tertera, lalu unggah screenshot
-              bukti transaksi. Maksimal 3 MB.
-            </div>
-
-            <label className="block cursor-pointer rounded-2xl border border-dashed border-slate-700 bg-slate-950 p-4 hover:border-slate-600">
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                onChange={(event) => {
-                  setProof(event.target.files?.[0] || null);
-                  setError('');
-                }}
-              />
-
-              <div className="flex items-center gap-3">
-                <FileImage className="h-5 w-5 shrink-0 text-indigo-400" />
-
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-white">
-                    Bukti transfer
-                  </p>
-                  <p className="mt-1 truncate text-[11px] text-slate-400">
-                    {proofLabel}
-                  </p>
-                </div>
-              </div>
-            </label>
-
-            {error && (
-              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
-                {error}
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={uploadProof}
-              disabled={!proof || uploading}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-xs font-black text-white hover:bg-emerald-500 disabled:opacity-50"
-            >
-              {uploading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Upload className="h-4 w-4" />
-              )}
-
-              {uploading ? 'Mengunggah...' : 'Kirim Bukti Transfer'}
+              {loadingOrder ? 'Menyiapkan checkout...' : 'Lanjut Pembayaran'}
             </button>
           </>
         )}
