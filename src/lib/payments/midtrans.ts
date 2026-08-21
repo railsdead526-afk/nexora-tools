@@ -14,6 +14,19 @@ export interface MidtransNotification {
   merchant_id?: string;
 }
 
+export interface MidtransStatusResponse {
+  status_code: string;
+  order_id: string;
+  transaction_id?: string;
+  gross_amount: string;
+  currency?: string;
+  transaction_status: string;
+  fraud_status?: string;
+  transaction_time?: string;
+  settlement_time?: string;
+  merchant_id?: string;
+}
+
 function getServerKey() {
   const serverKey = process.env.MIDTRANS_SERVER_KEY?.trim();
   if (!serverKey) throw new Error('MIDTRANS_SERVER_KEY is not configured.');
@@ -26,6 +39,16 @@ export function isMidtransProduction() {
 
 export function getMidtransMerchantId() {
   return process.env.MIDTRANS_MERCHANT_ID?.trim() || null;
+}
+
+function getApiBaseUrl() {
+  return isMidtransProduction()
+    ? 'https://api.midtrans.com'
+    : 'https://api.sandbox.midtrans.com';
+}
+
+function getBasicAuthHeader() {
+  return `Basic ${Buffer.from(`${getServerKey()}:`).toString('base64')}`;
 }
 
 export async function createMidtransSnapTransaction(input: {
@@ -47,11 +70,10 @@ export async function createMidtransSnapTransaction(input: {
     ? 'https://app.midtrans.com/snap/v1/transactions'
     : 'https://app.sandbox.midtrans.com/snap/v1/transactions';
 
-  const auth = Buffer.from(`${getServerKey()}:`).toString('base64');
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
-      Authorization: `Basic ${auth}`,
+      Authorization: getBasicAuthHeader(),
       Accept: 'application/json',
       'Content-Type': 'application/json',
       'X-Override-Notification': input.notificationUrl,
@@ -94,6 +116,36 @@ export async function createMidtransSnapTransaction(input: {
   };
 }
 
+export async function getMidtransTransactionStatus(orderId: string) {
+  if (!/^[A-Za-z0-9._~-]{1,50}$/.test(orderId)) {
+    throw new Error('Order ID Midtrans tidak valid.');
+  }
+
+  const response = await fetch(
+    `${getApiBaseUrl()}/v2/${encodeURIComponent(orderId)}/status`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: getBasicAuthHeader(),
+        Accept: 'application/json',
+      },
+      cache: 'no-store',
+    },
+  );
+
+  const body = (await response.json()) as MidtransStatusResponse & {
+    status_message?: string;
+  };
+
+  if (!response.ok || !body?.order_id) {
+    throw new Error(
+      body?.status_message || 'Gagal mengambil status transaksi Midtrans.',
+    );
+  }
+
+  return body;
+}
+
 export function verifyMidtransSignature(payload: MidtransNotification) {
   const raw = `${payload.order_id}${payload.status_code}${payload.gross_amount}${getServerKey()}`;
   const expected = createHash('sha512').update(raw).digest('hex');
@@ -108,7 +160,7 @@ export function verifyMidtransSignature(payload: MidtransNotification) {
   );
 }
 
-export function mapMidtransStatus(payload: MidtransNotification) {
+export function mapMidtransStatus(payload: Pick<MidtransNotification, 'status_code' | 'transaction_status' | 'fraud_status'>) {
   const status = payload.transaction_status?.toLowerCase();
   const fraudStatus = payload.fraud_status?.toLowerCase();
   const isFraudAccepted = !fraudStatus || fraudStatus === 'accept';
