@@ -1,11 +1,11 @@
 import { MetadataRoute } from 'next';
 import { TOOLS_DATA } from '@/config/tools';
 
+const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nexora-tools-p2ml-git-main-nexora-bcbb.vercel.app').replace(/\/$/, '');
+
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://nexora-tools.vercel.app';
   const currentDate = new Date();
 
-  // Halaman Utama & Pricing
   const staticRoutes: MetadataRoute.Sitemap = [
     {
       url: baseUrl,
@@ -19,9 +19,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'weekly',
       priority: 0.8,
     },
+    {
+      url: `${baseUrl}/nexora-ai`,
+      lastModified: currentDate,
+      changeFrequency: 'weekly',
+      priority: 0.9,
+    },
   ];
 
-  // Seluruh Halaman 9 Tools
   const toolRoutes: MetadataRoute.Sitemap = TOOLS_DATA.map((tool) => ({
     url: `${baseUrl}/tools/${tool.slug}`,
     lastModified: currentDate,
