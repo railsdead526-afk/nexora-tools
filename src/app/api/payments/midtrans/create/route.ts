@@ -1,0 +1,113 @@
+import { NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
+import { getUserFromRequest } from '@/lib/auth/require-user';
+import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+import { createMidtransSnapTransaction } from '@/lib/payments/midtrans';
+
+export const runtime = 'nodejs';
+
+const PRO_PRICE = 49_000;
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '');
+
+export async function POST(request: Request) {
+  try {
+    const user = await getUserFromRequest(request);
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Silakan login terlebih dahulu.' },
+        { status: 401 },
+      );
+    }
+
+    if (!APP_URL) {
+      return NextResponse.json(
+        { error: 'NEXT_PUBLIC_APP_URL belum dikonfigurasi.' },
+        { status: 500 },
+      );
+    }
+
+    const supabase = createSupabaseAdminClient();
+
+    const { data: existing, error: existingError } = await supabase
+      .from('payments')
+      .select('provider_order_id, amount, status, created_at')
+      .eq('user_id', user.id)
+      .eq('provider', 'midtrans')
+      .in('status', ['pending'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingError) {
+      throw existingError;
+    }
+
+    if (existing) {
+      return NextResponse.json({
+        orderId: existing.provider_order_id,
+        amount: existing.amount,
+        status: existing.status,
+        reused: true,
+        checkout: null,
+      });
+    }
+
+    const orderId = `NXR-PRO-${Date.now()}-${randomUUID().slice(0, 8)}`;
+
+    const { error: insertError } = await supabase.from('payments').insert({
+      user_id: user.id,
+      provider: 'midtrans',
+      provider_order_id: orderId,
+      amount: PRO_PRICE,
+      currency: 'IDR',
+      status: 'pending',
+    });
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    try {
+      const checkout = await createMidtransSnapTransaction({
+        orderId,
+        amount: PRO_PRICE,
+        email: user.email ?? '',
+        finishUrl: `${APP_URL}/payment/finish?orderId=${encodeURIComponent(orderId)}`,
+        notificationUrl: `${APP_URL}/api/payments/midtrans/webhook`,
+      });
+
+      return NextResponse.json({
+        orderId,
+        amount: PRO_PRICE,
+        status: 'pending',
+        reused: false,
+        checkout,
+      });
+    } catch (error) {
+      await supabase
+        .from('payments')
+        .update({
+          status: 'failed',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('provider_order_id', orderId)
+        .eq('user_id', user.id)
+        .eq('status', 'pending');
+
+      throw error;
+    }
+  } catch (error) {
+    console.error('Create Midtrans payment error:', error);
+
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Gagal membuat pembayaran Midtrans.',
+      },
+      { status: 500 },
+    );
+  }
+}
