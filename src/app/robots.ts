@@ -1,12 +1,14 @@
 import { MetadataRoute } from 'next';
 
+const siteUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nexora-tools-p2ml-git-main-nexora-bcbb.vercel.app').replace(/\/$/, '');
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: '*',
       allow: '/',
-      // Larang Google mengintip panel admin & API rahasia
+      disallow: ['/admin', '/api'],
     },
-    sitemap: 'https://nexora-tools.vercel.app/sitemap.xml',
+    sitemap: `${siteUrl}/sitemap.xml`,
   };
 }
