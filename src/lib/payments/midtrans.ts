@@ -11,16 +11,21 @@ export interface MidtransNotification {
   payment_type?: string;
   transaction_time?: string;
   settlement_time?: string;
+  merchant_id?: string;
 }
 
 function getServerKey() {
-  const serverKey = process.env.MIDTRANS_SERVER_KEY;
+  const serverKey = process.env.MIDTRANS_SERVER_KEY?.trim();
   if (!serverKey) throw new Error('MIDTRANS_SERVER_KEY is not configured.');
   return serverKey;
 }
 
 export function isMidtransProduction() {
   return process.env.MIDTRANS_IS_PRODUCTION === 'true';
+}
+
+export function getMidtransMerchantId() {
+  return process.env.MIDTRANS_MERCHANT_ID?.trim() || null;
 }
 
 export async function createMidtransSnapTransaction(input: {
@@ -30,6 +35,14 @@ export async function createMidtransSnapTransaction(input: {
   finishUrl: string;
   notificationUrl: string;
 }) {
+  if (!/^[A-Za-z0-9._~-]{1,50}$/.test(input.orderId)) {
+    throw new Error('Order ID Midtrans tidak valid.');
+  }
+
+  if (!Number.isInteger(input.amount) || input.amount <= 0) {
+    throw new Error('Nominal pembayaran tidak valid.');
+  }
+
   const endpoint = isMidtransProduction()
     ? 'https://app.midtrans.com/snap/v1/transactions'
     : 'https://app.sandbox.midtrans.com/snap/v1/transactions';
@@ -57,9 +70,8 @@ export async function createMidtransSnapTransaction(input: {
         },
       ],
       customer_details: {
-        email: input.email,
+        email: input.email || undefined,
       },
-      enabled_payments: ['other_qris'],
       callbacks: {
         finish: input.finishUrl,
       },
@@ -68,8 +80,12 @@ export async function createMidtransSnapTransaction(input: {
   });
 
   const body = await response.json();
-  if (!response.ok || !body?.redirect_url) {
-    throw new Error(body?.error_messages?.join(', ') || body?.message || 'Gagal membuat transaksi Midtrans.');
+  if (!response.ok || !body?.redirect_url || !body?.token) {
+    throw new Error(
+      body?.error_messages?.join(', ') ||
+        body?.message ||
+        'Gagal membuat transaksi Midtrans.',
+    );
   }
 
   return {
@@ -83,8 +99,13 @@ export function verifyMidtransSignature(payload: MidtransNotification) {
   const expected = createHash('sha512').update(raw).digest('hex');
   const received = payload.signature_key || '';
 
+  if (!/^[a-f0-9]{128}$/i.test(received)) return false;
   if (expected.length !== received.length) return false;
-  return timingSafeEqual(Buffer.from(expected), Buffer.from(received));
+
+  return timingSafeEqual(
+    Buffer.from(expected, 'utf8'),
+    Buffer.from(received, 'utf8'),
+  );
 }
 
 export function mapMidtransStatus(payload: MidtransNotification) {
@@ -92,7 +113,11 @@ export function mapMidtransStatus(payload: MidtransNotification) {
   const fraudStatus = payload.fraud_status?.toLowerCase();
   const isFraudAccepted = !fraudStatus || fraudStatus === 'accept';
 
-  if (payload.status_code === '200' && isFraudAccepted && (status === 'settlement' || status === 'capture')) {
+  if (
+    payload.status_code === '200' &&
+    isFraudAccepted &&
+    (status === 'settlement' || status === 'capture')
+  ) {
     return 'paid' as const;
   }
 
