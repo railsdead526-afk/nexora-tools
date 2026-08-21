@@ -5,7 +5,7 @@ import AppShell from '@/components/AppShell';
 import { UserProvider } from '@/context/UserContext';
 
 const inter = Inter({ subsets: ['latin'] });
-const siteUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nexora-tools-p2ml-git-main-nexora-bcbb.vercel.app').replace(/\/$/, '');
+const siteUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nexora-tools-nexora-bcbb.vercel.app').replace(/\/$/, '');
 
 export const viewport: Viewport = {
   themeColor: '#050505',
