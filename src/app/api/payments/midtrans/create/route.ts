@@ -28,31 +28,6 @@ export async function POST(request: Request) {
     }
 
     const supabase = createSupabaseAdminClient();
-
-    const { data: existing, error: existingError } = await supabase
-      .from('payments')
-      .select('provider_order_id, amount, status, created_at')
-      .eq('user_id', user.id)
-      .eq('provider', 'midtrans')
-      .in('status', ['pending'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (existingError) {
-      throw existingError;
-    }
-
-    if (existing) {
-      return NextResponse.json({
-        orderId: existing.provider_order_id,
-        amount: existing.amount,
-        status: existing.status,
-        reused: true,
-        checkout: null,
-      });
-    }
-
     const orderId = `NXR-PRO-${Date.now()}-${randomUUID().slice(0, 8)}`;
 
     const { error: insertError } = await supabase.from('payments').insert({
