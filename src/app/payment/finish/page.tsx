@@ -16,9 +16,6 @@ type PaymentStatus = {
   orderId: string;
   amount: number;
   status: string;
-  submittedAt?: string | null;
-  reviewedAt?: string | null;
-  reviewNote?: string | null;
   paidAt?: string | null;
 };
 
@@ -98,8 +95,36 @@ function PaymentFinishContent() {
   }, [loadStatus]);
 
   const isPaid = payment?.status === 'paid';
-  const isRejected = payment?.status === 'rejected';
-  const isReview = payment?.status === 'pending_review';
+  const isFailed = payment?.status === 'failed';
+  const isExpired = payment?.status === 'expired';
+  const isCancelled = payment?.status === 'cancelled';
+  const isRefunded = payment?.status === 'refunded';
+
+  let title = 'Pembayaran belum selesai';
+  let description = 'Selesaikan pembayaran di Midtrans. Status akan diperbarui otomatis setelah transaksi terverifikasi.';
+  let icon = <Clock3 className="mx-auto h-12 w-12 text-amber-400" />;
+
+  if (isPaid) {
+    title = 'Pembayaran berhasil';
+    description = 'Nexora PRO sudah aktif di akun kamu selama 30 hari.';
+    icon = <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-400" />;
+  } else if (isFailed) {
+    title = 'Pembayaran gagal';
+    description = 'Transaksi tidak berhasil. Buat pembayaran baru dari halaman harga untuk mencoba lagi.';
+    icon = <XCircle className="mx-auto h-12 w-12 text-red-400" />;
+  } else if (isExpired) {
+    title = 'Pembayaran kedaluwarsa';
+    description = 'Sesi pembayaran sudah berakhir. Buat pembayaran baru dari halaman harga.';
+    icon = <Clock3 className="mx-auto h-12 w-12 text-slate-400" />;
+  } else if (isCancelled) {
+    title = 'Pembayaran dibatalkan';
+    description = 'Transaksi dibatalkan dan belum mengaktifkan Nexora PRO.';
+    icon = <XCircle className="mx-auto h-12 w-12 text-red-400" />;
+  } else if (isRefunded) {
+    title = 'Pembayaran dikembalikan';
+    description = 'Transaksi ini sudah direfund. Akses PRO mengikuti status pembayaran yang terverifikasi.';
+    icon = <XCircle className="mx-auto h-12 w-12 text-slate-400" />;
+  }
 
   return (
     <div className="mx-auto max-w-lg px-4 py-20 text-center">
@@ -113,7 +138,8 @@ function PaymentFinishContent() {
         ) : loading ? (
           <>
             <Loader2 className="mx-auto h-11 w-11 animate-spin text-indigo-400" />
-            <h1 className="text-xl font-black text-white">Memuat status pembayaran</h1>
+            <h1 className="text-xl font-black text-white">Memeriksa status pembayaran</h1>
+            <p className="text-sm text-slate-400">Kami sedang mencocokkan status transaksi dengan Midtrans.</p>
           </>
         ) : error ? (
           <>
@@ -121,36 +147,11 @@ function PaymentFinishContent() {
             <h1 className="text-xl font-black text-white">Status gagal dimuat</h1>
             <p className="text-sm text-red-300">{error}</p>
           </>
-        ) : isPaid ? (
-          <>
-            <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-400" />
-            <h1 className="text-2xl font-black text-white">Pembayaran disetujui</h1>
-            <p className="text-sm text-slate-400">Nexora PRO sudah aktif di akun kamu selama 30 hari.</p>
-          </>
-        ) : isRejected ? (
-          <>
-            <XCircle className="mx-auto h-12 w-12 text-red-400" />
-            <h1 className="text-2xl font-black text-white">Bukti transfer ditolak</h1>
-            <p className="text-sm text-slate-400">
-              {payment?.reviewNote ||
-                'Bukti transfer belum dapat diverifikasi. Buat pembayaran baru dari halaman harga.'}
-            </p>
-          </>
-        ) : isReview ? (
-          <>
-            <Clock3 className="mx-auto h-12 w-12 text-amber-400" />
-            <h1 className="text-2xl font-black text-white">Menunggu verifikasi admin</h1>
-            <p className="text-sm leading-relaxed text-slate-400">
-              Bukti transfer sudah diterima. PRO akan aktif setelah pembayaran diperiksa dan disetujui.
-            </p>
-          </>
         ) : (
           <>
-            <Clock3 className="mx-auto h-12 w-12 text-slate-400" />
-            <h1 className="text-2xl font-black text-white">Pembayaran belum dikirim</h1>
-            <p className="text-sm text-slate-400">
-              Selesaikan transfer dan unggah bukti pembayaran dari halaman harga.
-            </p>
+            {icon}
+            <h1 className="text-2xl font-black text-white">{title}</h1>
+            <p className="text-sm leading-relaxed text-slate-400">{description}</p>
           </>
         )}
 
@@ -158,6 +159,16 @@ function PaymentFinishContent() {
           <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-left">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Order ID</p>
             <p className="mt-1 break-all font-mono text-xs text-slate-300">{payment.orderId}</p>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</p>
+                <p className="mt-1 text-xs font-bold uppercase text-slate-200">{payment.status}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Nominal</p>
+                <p className="mt-1 text-xs font-bold text-slate-200">Rp{payment.amount.toLocaleString('id-ID')}</p>
+              </div>
+            </div>
           </div>
         )}
 
@@ -174,10 +185,10 @@ function PaymentFinishContent() {
         )}
 
         <Link
-          href={isRejected || !orderId ? '/pricing' : '/'}
+          href={isFailed || isExpired || isCancelled || !orderId ? '/pricing' : '/'}
           className="block w-full rounded-xl bg-indigo-600 py-3 text-xs font-bold text-white hover:bg-indigo-500"
         >
-          {isRejected || !orderId ? 'Kembali ke Pembayaran' : 'Kembali ke Nexora'}
+          {isFailed || isExpired || isCancelled || !orderId ? 'Kembali ke Pembayaran' : 'Kembali ke Nexora'}
         </Link>
       </div>
     </div>
