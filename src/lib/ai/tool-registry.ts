@@ -1,9 +1,10 @@
-export type ToolPermission = "network" | "code" | "files" | "database";
+export type ToolPermission = 'network' | 'code' | 'files' | 'database';
 
 export type ToolDefinition<TInput = unknown, TOutput = unknown> = {
   name: string;
   description: string;
   permissions: ToolPermission[];
+  jsonSchema: Record<string, unknown>;
   inputSchema: (input: unknown) => input is TInput;
   execute: (input: TInput) => Promise<TOutput>;
 };
@@ -22,7 +23,12 @@ export function getTool(name: string) {
 }
 
 export function listTools() {
-  return Array.from(registry.values()).map(({ execute: _execute, inputSchema: _inputSchema, ...metadata }) => metadata);
+  return Array.from(registry.values()).map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    permissions: tool.permissions,
+    jsonSchema: tool.jsonSchema,
+  }));
 }
 
 export async function executeTool(name: string, input: unknown) {
