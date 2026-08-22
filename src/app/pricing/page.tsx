@@ -31,8 +31,8 @@ export default function PricingPage() {
         </h1>
 
         <p className="text-xs text-slate-400 md:text-sm">
-          Pembayaran PRO dilakukan melalui transfer DANA dan diverifikasi
-          setelah bukti transfer dikirim.
+          Pembayaran PRO diproses otomatis via Midtrans — QRIS, GoPay, transfer
+          bank, dan e-wallet. PRO aktif seketika setelah pembayaran berhasil.
         </p>
       </div>
 
@@ -100,11 +100,19 @@ export default function PricingPage() {
               </li>
               <li className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-amber-400" />
-                Masa aktif bertambah 30 hari setelah pembayaran disetujui
+                Kuota pemakaian lebih besar untuk downloader & AI tools
               </li>
               <li className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-amber-400" />
-                Transfer DANA + upload bukti pembayaran
+                Bebas iklan di seluruh halaman
+              </li>
+              <li className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-amber-400" />
+                Masa aktif bertambah 30 hari setelah pembayaran berhasil
+              </li>
+              <li className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-amber-400" />
+                Bayar via Midtrans: QRIS, GoPay, transfer bank, e-wallet
               </li>
             </ul>
           </div>
@@ -130,6 +138,72 @@ export default function PricingPage() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
       />
+
+      <div className="mx-auto max-w-3xl space-y-6 pt-6 text-left">
+        <div className="rounded-3xl border border-slate-800 bg-slate-900/40 p-6 md:p-8">
+          <h2 className="text-base font-extrabold text-white md:text-lg">
+            Cara berlangganan PRO
+          </h2>
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            {[
+              {
+                step: '1',
+                title: 'Login akun',
+                desc: 'Daftar gratis dulu — pembayaran akan otomatis terhubung ke akun kamu.',
+              },
+              {
+                step: '2',
+                title: 'Pilih metode bayar',
+                desc: 'Klik "Lanjut Pembayaran", lalu pilih QRIS, GoPay, transfer bank, atau e-wallet di halaman Midtrans.',
+              },
+              {
+                step: '3',
+                title: 'PRO langsung aktif',
+                desc: 'Setelah pembayaran sukses, status PRO aktif otomatis dan masa aktif bertambah 30 hari.',
+              },
+            ].map(item => (
+              <div key={item.step} className="space-y-2 rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 text-xs font-black text-slate-950">
+                  {item.step}
+                </div>
+                <p className="text-xs font-bold text-white">{item.title}</p>
+                <p className="text-[11px] leading-relaxed text-slate-400">
+                  {item.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-slate-800 bg-slate-900/40 p-6 md:p-8">
+          <h2 className="text-base font-extrabold text-white md:text-lg">
+            Pertanyaan umum
+          </h2>
+          <div className="mt-4 space-y-4 text-xs leading-relaxed text-slate-300">
+            <div className="space-y-1">
+              <p className="font-bold text-white">Apakah PRO bisa diperpanjang?</p>
+              <p className="text-slate-400">
+                Bisa. Setiap pembayaran sukses menambah masa aktif 30 hari ke
+                sisa masa aktif yang ada — tidak ada batas perpanjangan.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="font-bold text-white">Bagaimana jika pembayaran gagal atau kedaluwarsa?</p>
+              <p className="text-slate-400">
+                Transaksi yang gagal/kedaluwarsa tidak mengubah status akun.
+                Kamu cukup membuat order baru kapan saja.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="font-bold text-white">Apakah data pembayaran aman?</p>
+              <p className="text-slate-400">
+                Ya. Pembayaran diproses sepenuhnya oleh Midtrans (PCI-DSS),
+                dan Nexora tidak pernah menyimpan data kartu atau PIN.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

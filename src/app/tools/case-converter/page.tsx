@@ -1,5 +1,7 @@
 'use client';
 
+import AdSlot from '@/components/AdSlot';
+
 import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Copy, Check } from 'lucide-react';
@@ -28,6 +30,7 @@ export default function CaseConverterPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
+      <AdSlot className="mt-6" />
       <Link href="/" className="inline-flex items-center gap-2 text-xs font-medium text-slate-400 hover:text-white">
         <ArrowLeft className="w-3.5 h-3.5" /> Kembali ke Katalog
       </Link>

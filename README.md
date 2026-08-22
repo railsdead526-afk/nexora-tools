@@ -75,3 +75,24 @@ Tidak ada lagi PIN admin, voucher universal, `pro_users.json`, atau aktivasi PRO
 ## Catatan downloader
 
 Downloader lama yang menjalankan `yt-dlp` langsung dari route Vercel telah dibuang. Route `/api/downloader` sekarang hanya meneruskan request ke worker eksternal yang dikonfigurasi melalui `DOWNLOADER_WORKER_URL`. Jika worker belum tersedia, downloader mengembalikan status nonaktif dengan aman.
+
+## Monetisasi: cara website ini menghasilkan uang
+
+Nexora Tools punya 2 sumber pendapatan:
+
+### 1. Langganan Nexora PRO (Midtrans QRIS)
+- Free user mendapat tools dasar dengan kuota terbatas (`src/config/quotas.ts`).
+- PRO Rp49.000/30 hari dibayar via Midtrans Snap (QRIS, GoPay, transfer bank, e-wallet).
+- Pembayaran diverifikasi lewat webhook; PRO aktif otomatis +30 hari.
+- Admin dapat meninjau seluruh transaksi di `/admin/payments`.
+
+### 2. Iklan Google AdSense (untuk trafik gratis)
+- Komponen `<AdSlot />` sudah terpasang di beranda dan semua halaman tool.
+- Isi `NEXT_PUBLIC_ADSENSE_CLIENT` (contoh: `ca-pub-xxxxxxxx`) di environment
+  untuk memuat iklan asli. Tanpa nilai ini, slot menampilkan placeholder "Iklan"
+  agar layout tetap rapi.
+- Anggota PRO otomatis tidak melihat iklan sama sekali (benefit "bebas iklan").
+- Setiap slot menerima prop `slot` (ID unit iklan AdSense) dan `format`
+  (`auto`, `rectangle`, `horizontal`, `vertical`).
+
+Tips: gabungkan keduanya — iklan menagkap trafik gratis, PRO menagkap power user.

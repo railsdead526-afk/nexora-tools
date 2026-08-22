@@ -1,11 +1,9 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
 import './globals.css';
 import AppShell from '@/components/AppShell';
 import { UserProvider } from '@/context/UserContext';
 
-const inter = Inter({ subsets: ['latin'] });
-const siteUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nexora-tools-nexora-bcbb.vercel.app').replace(/\/$/, '');
+const siteUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nexora-tools.vercel.app').replace(/\/$/, '');
 
 export const viewport: Viewport = {
   themeColor: '#050505',
@@ -48,7 +46,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="id" className="dark">
-      <body className={`${inter.className} bg-[#050505] text-zinc-100 min-h-screen flex flex-col antialiased`}>
+      <body className={`min-h-screen flex flex-col bg-[#050505] text-zinc-100 antialiased`}>
         <UserProvider><AppShell>{children}</AppShell></UserProvider>
       </body>
     </html>

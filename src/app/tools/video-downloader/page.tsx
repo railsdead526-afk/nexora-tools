@@ -1,11 +1,14 @@
 'use client';
 
+import AdSlot from '@/components/AdSlot';
+
 import Link from 'next/link';
 import { ArrowLeft, Construction, Clock3, ShieldCheck } from 'lucide-react';
 
 export default function VideoDownloaderMaintenancePage() {
   return (
     <main className="min-h-[70vh] flex items-center justify-center px-4 py-10">
+      <AdSlot className="mb-6" />
       <div className="w-full max-w-xl">
         <Link
           href="/"

@@ -1,5 +1,7 @@
 'use client';
 
+import AdSlot from '@/components/AdSlot';
+
 import { useState } from 'react';
 import Link from 'next/link';
 import { 
@@ -71,6 +73,7 @@ export default function UuidGeneratorPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 pt-6 pb-28 space-y-7">
+      <AdSlot className="mt-6" />
       <Link href="/" className="inline-flex items-center gap-2 text-xs font-medium text-slate-400 hover:text-white transition-colors">
         <ArrowLeft className="w-3.5 h-3.5" /> Kembali ke Katalog
       </Link>

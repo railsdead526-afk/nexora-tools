@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { TOOLS_DATA } from '@/config/tools';
+import AdSlot from '@/components/AdSlot';
 import { Search, ArrowRight, Sparkles, Video, PenTool, Mail, KeyRound, FileStack, ImageDown, Files, QrCode, CaseSensitive, Download } from 'lucide-react';
 
 export default function HomePage() {
@@ -63,6 +64,8 @@ export default function HomePage() {
           </div>
         </section>
 
+        <AdSlot className="mt-8" />
+
         <section className="mt-10 sm:mt-12">
           <div className="mb-4 flex items-end justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#b85b25]">Tool library</p><h2 className="mt-1 text-lg font-black tracking-tight text-[#f4f4f5] sm:text-xl">Pilih tool</h2></div><span className="text-[10px] text-zinc-600 sm:text-xs">{filteredTools.length} tools</span></div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 md:gap-5">
@@ -73,6 +76,8 @@ export default function HomePage() {
           </div>
           {filteredTools.length === 0 && <div className="rounded-2xl border border-dashed border-white/[0.08] py-14 text-center text-xs text-zinc-600">Tidak ada tool yang cocok dengan pencarian.</div>}
         </section>
+
+        <AdSlot className="mt-10" />
       </div>
     </div>
   );
