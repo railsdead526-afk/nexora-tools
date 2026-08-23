@@ -1,16 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { TOOLS_DATA } from '@/config/tools';
 import { Search, ArrowRight, Sparkles, Video, PenTool, Mail, KeyRound, FileStack, ImageDown, Files, QrCode, CaseSensitive, Download } from 'lucide-react';
 
 export default function HomePage() {
-  const [mounted, setMounted] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-
-  useEffect(() => setMounted(true), []);
   const categories = ['All', 'Video', 'Text', 'PDF', 'Image', 'Generator'];
   const filteredTools = TOOLS_DATA.filter(tool => {
     const q = search.toLowerCase();
@@ -35,8 +32,6 @@ export default function HomePage() {
     }
   };
 
-  if (!mounted) return <div className="flex min-h-screen items-center justify-center bg-[#050505]"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#c65a16] border-t-transparent" /></div>;
-
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#050505] pb-20 text-[#f4f4f5]">
       <div className="pointer-events-none absolute left-1/2 top-0 -z-0 h-[360px] w-[720px] -translate-x-1/2 rounded-full bg-[#c65a16]/[0.06] blur-[120px]" />
@@ -55,7 +50,7 @@ export default function HomePage() {
 
           <div className="relative mx-auto max-w-2xl pt-1">
             <Search className="pointer-events-none absolute left-4 top-[18px] h-4 w-4 text-zinc-600" />
-            <input type="text" placeholder="Cari tool..." value={search} onChange={e => setSearch(e.target.value)} className="w-full rounded-2xl border border-white/[0.08] bg-[#0b0b0b]/95 py-3.5 pl-11 pr-4 text-xs text-[#f4f4f5] shadow-2xl shadow-black/30 outline-none transition focus:border-[#c65a16]/35 focus:ring-4 focus:ring-[#c65a16]/[0.06] sm:text-sm" />
+            <input type="text" aria-label="Cari tool" placeholder="Cari tool..." value={search} onChange={e => setSearch(e.target.value)} className="w-full rounded-2xl border border-white/[0.08] bg-[#0b0b0b]/95 py-3.5 pl-11 pr-4 text-xs text-[#f4f4f5] shadow-2xl shadow-black/30 outline-none transition focus:border-[#c65a16]/35 focus:ring-4 focus:ring-[#c65a16]/[0.06] sm:text-sm" />
           </div>
 
           <div className="flex flex-wrap justify-center gap-1.5 pt-1 sm:gap-2">
