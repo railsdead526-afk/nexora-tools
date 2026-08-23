@@ -3,7 +3,7 @@ import './globals.css';
 import AppShell from '@/components/AppShell';
 import { UserProvider } from '@/context/UserContext';
 
-const siteUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nexora-tools-nexora-bcbb.vercel.app').replace(/\/$/, '');
+const siteUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nexora-tools-p2ml.vercel.app').replace(/\/$/, '');
 
 export const viewport: Viewport = {
   themeColor: '#050505',
@@ -20,6 +20,9 @@ export const metadata: Metadata = {
   authors: [{ name: 'Nexora Team' }],
   creator: 'Nexora',
   publisher: 'Nexora Tools',
+  verification: {
+    google: '-c0eQ3_-HHIBT1hW2HCo_0SpQrnW97etg6hg3nT5PAQ',
+  },
   alternates: {
     canonical: '/',
   },
