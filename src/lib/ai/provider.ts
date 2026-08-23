@@ -1,6 +1,6 @@
-import { GeminiAIProvider } from './providers/gemini';
+import { OpenAIAIProvider } from './providers/openai';
 import type { AIProvider } from './types';
 
 export function getAIProvider(): AIProvider {
-  return new GeminiAIProvider();
+  return new OpenAIAIProvider();
 }

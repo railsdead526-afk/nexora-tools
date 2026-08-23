@@ -31,8 +31,8 @@ export default function PricingPage() {
         </h1>
 
         <p className="text-xs text-slate-400 md:text-sm">
-          Pembayaran PRO dilakukan melalui transfer DANA dan diverifikasi
-          setelah bukti transfer dikirim.
+          Pembayaran PRO diproses otomatis melalui checkout Midtrans tanpa
+          upload bukti transfer manual.
         </p>
       </div>
 
@@ -100,11 +100,11 @@ export default function PricingPage() {
               </li>
               <li className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-amber-400" />
-                Masa aktif bertambah 30 hari setelah pembayaran disetujui
+                Masa aktif bertambah 30 hari setelah pembayaran Midtrans berhasil
               </li>
               <li className="flex items-center gap-2">
                 <Check className="h-4 w-4 text-amber-400" />
-                Transfer DANA + upload bukti pembayaran
+                Checkout instan via Midtrans dengan QRIS, e-wallet, atau bank yang tersedia
               </li>
             </ul>
           </div>

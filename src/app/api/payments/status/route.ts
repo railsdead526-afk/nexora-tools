@@ -29,9 +29,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await supabase
       .from('payments')
-      .select(
-        'provider_order_id,provider,amount,currency,status,created_at,submitted_at,reviewed_at,review_note,paid_at',
-      )
+      .select('provider_order_id,provider,amount,currency,status,created_at,paid_at')
       .eq('provider_order_id', orderId)
       .eq('user_id', user.id)
       .maybeSingle();
@@ -54,9 +52,6 @@ export async function GET(request: Request) {
       currency: data.currency,
       status: data.status,
       createdAt: data.created_at,
-      submittedAt: data.submitted_at,
-      reviewedAt: data.reviewed_at,
-      reviewNote: data.review_note,
       paidAt: data.paid_at,
     });
   } catch (error) {

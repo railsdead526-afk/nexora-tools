@@ -8,11 +8,40 @@ export interface AccountSubscriptionStatus {
   expiresAt: string | null;
 }
 
-export async function getAccountSubscriptionStatus(
-  userId: string,
-): Promise<AccountSubscriptionStatus> {
-  const supabase = createSupabaseAdminClient();
+type SubscriptionRow = {
+  plan: 'free' | 'pro';
+  status: 'active' | 'expired' | 'cancelled';
+  expires_at: string | null;
+} | null;
 
+function mapSubscriptionStatus(row: SubscriptionRow): AccountSubscriptionStatus {
+  const expiresAt = row?.expires_at ? new Date(row.expires_at) : null;
+  const isPro =
+    row?.plan === 'pro' &&
+    row?.status === 'active' &&
+    expiresAt !== null &&
+    expiresAt.getTime() > Date.now();
+
+  return {
+    plan: isPro ? 'pro' : 'free',
+    isPro,
+    status: row?.status ?? null,
+    expiresAt: isPro && expiresAt ? expiresAt.toISOString() : null,
+  };
+}
+
+export async function reconcileSubscriptionExpiry(userId?: string) {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase.rpc('reconcile_subscription_expiry', {
+    p_user_id: userId ?? null,
+  });
+
+  if (error) throw error;
+  return Number(data || 0);
+}
+
+async function getSubscriptionRow(userId: string): Promise<SubscriptionRow> {
+  const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from('subscriptions')
     .select('plan,status,expires_at')
@@ -23,23 +52,13 @@ export async function getAccountSubscriptionStatus(
     throw error;
   }
 
-  const expiresAt = data?.expires_at
-    ? new Date(data.expires_at)
-    : null;
+  return (data as SubscriptionRow) ?? null;
+}
 
-  const isPro =
-    data?.plan === 'pro' &&
-    data?.status === 'active' &&
-    expiresAt !== null &&
-    expiresAt.getTime() > Date.now();
-
-  return {
-    plan: isPro ? 'pro' : 'free',
-    isPro,
-    status: data?.status ?? null,
-    expiresAt:
-      isPro && expiresAt
-        ? expiresAt.toISOString()
-        : null,
-  };
+export async function getAccountSubscriptionStatus(
+  userId: string,
+): Promise<AccountSubscriptionStatus> {
+  await reconcileSubscriptionExpiry(userId);
+  const row = await getSubscriptionRow(userId);
+  return mapSubscriptionStatus(row);
 }

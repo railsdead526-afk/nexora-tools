@@ -1,73 +1,72 @@
-import { streamGemini, type GeminiMessage } from '@/lib/ai/gemini';
+import { getAIOrchestrator } from '@/lib/ai/orchestrator';
+import type { AIChatInput } from '@/lib/ai/types';
 
 export const runtime = 'nodejs';
 
+type LegacyMessage = {
+  role?: 'user' | 'model';
+  parts?: Array<{ text?: string }>;
+};
+
+function toAIChatInput(messages: LegacyMessage[]): AIChatInput {
+  return {
+    messages: messages
+      .filter((message) => message?.role === 'user' || message?.role === 'model')
+      .map((message): { role: 'user' | 'assistant'; content: string } => ({
+        role: message.role === 'model' ? 'assistant' : 'user',
+        content: String(message.parts?.[0]?.text ?? '').trim(),
+      }))
+      .filter((message) => message.content.length > 0),
+  };
+}
+
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const messages = body?.messages as GeminiMessage[] | undefined;
+    const body = (await request.json()) as {
+      messages?: LegacyMessage[];
+      model?: string;
+    };
 
-    if (!Array.isArray(messages) || messages.length === 0) {
+    if (!Array.isArray(body.messages) || body.messages.length === 0) {
       return Response.json({ error: 'messages is required' }, { status: 400 });
     }
 
-    const safeMessages = messages
-      .filter((message) => message?.role === 'user' || message?.role === 'model')
-      .map((message) => ({
-        role: message.role,
-        parts: [{ text: String(message.parts?.[0]?.text ?? '') }],
-      }))
-      .filter((message) => message.parts[0].text.trim().length > 0);
-
-    if (!safeMessages.length) {
+    const input = toAIChatInput(body.messages);
+    if (!input.messages.length) {
       return Response.json({ error: 'No valid message content' }, { status: 400 });
     }
 
-    const upstream = await streamGemini(safeMessages);
+    if (typeof body.model === 'string' && body.model.trim()) {
+      input.model = body.model.trim();
+    }
 
     const encoder = new TextEncoder();
-    const decoder = new TextDecoder();
-    const reader = upstream.getReader();
-
-    const output = new ReadableStream({
+    const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
-        let buffer = '';
         try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-
-            const events = buffer.split('\n\n');
-            buffer = events.pop() ?? '';
-
-            for (const event of events) {
-              const line = event.split('\n').find((item) => item.startsWith('data: '));
-              if (!line) continue;
-              const payload = line.slice(6).trim();
-              if (!payload || payload === '[DONE]') continue;
-
-              try {
-                const json = JSON.parse(payload);
-                const text = json?.candidates?.[0]?.content?.parts
-                  ?.map((part: { text?: string }) => part.text || '')
-                  .join('') || '';
-                if (text) controller.enqueue(encoder.encode(text));
-              } catch {
-                // Ignore incomplete/non-JSON SSE frames.
-              }
+          const orchestrator = getAIOrchestrator();
+          for await (const chunk of orchestrator.chat(input)) {
+            if (chunk.type === 'text' && chunk.text) {
+              controller.enqueue(encoder.encode(chunk.text));
+            }
+            if (chunk.type === 'error') {
+              controller.enqueue(
+                encoder.encode(
+                  `\n\nNexoraAI error: ${chunk.error || 'AI request failed.'}`,
+                ),
+              );
+              controller.close();
+              return;
             }
           }
           controller.close();
         } catch (error) {
           controller.error(error);
-        } finally {
-          reader.releaseLock();
         }
       },
     });
 
-    return new Response(output, {
+    return new Response(stream, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'Cache-Control': 'no-cache, no-transform',

@@ -56,7 +56,7 @@ export default function CheckoutModal({
     setError('');
 
     try {
-      const response = await fetch('/api/payments/midtrans/create', {
+      const response = await fetch('/api/payments/create', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${session.access_token}`,
