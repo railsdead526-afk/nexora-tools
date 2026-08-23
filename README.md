@@ -59,6 +59,31 @@ https://DOMAIN-KAMU/api/payments/midtrans/webhook
 npm run dev
 ```
 
+## Environment variables: lokal vs production
+
+Variabel environment disimpan di dua tempat yang berbeda:
+
+| Lingkungan | Sumber | Kapan dipakai |
+|---|---|---|
+| Lokal (`npm run dev`) | File `.env.local` | Saat develop di komputer sendiri |
+| Production (Vercel) | Vercel → Settings → Environment Variables | Saat build dan runtime di server |
+
+Poin penting:
+
+- File `.env*` sengaja di-gitignore sehingga tidak pernah ter-upload ke repo. **Jangan pernah commit file `.env`** karena berisi kunci rahasia level server (`SUPABASE_SERVICE_ROLE_KEY`, `MIDTRANS_SERVER_KEY`).
+- Vercel tidak membaca file `.env` dari repo; variabel production wajib diatur di dashboard Vercel (atau lewat CLI).
+- Sinkronkan dari Vercel ke lokal tanpa copy-paste manual:
+
+```bash
+npm i -g vercel
+vercel link                  # sekali saja per project
+vercel env pull .env.local   # tarik semua variabel dari Vercel ke .env.local
+vercel env add NAMA_VARIABEL production   # tambah variabel baru di Vercel dari terminal
+```
+
+- Variabel berprefix `NEXT_PUBLIC_` di-bake ke bundle browser saat build. Jika nilainya diubah di Vercel, jalankan redeploy supaya perubahan terlihat.
+- Setelah penghapusan NexoraAI, variabel `OPENAI_API_KEY`, `ADMIN_EMAILS`, dan `ADMIN_USER_IDS` sudah tidak dipakai dan aman dihapus dari Vercel.
+
 ## Alur PRO
 
 ```text
