@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { reconcileSubscriptionExpiry } from '@/lib/account/subscription';
 
@@ -11,7 +12,9 @@ function isAuthorized(request: Request) {
   if (!authHeader?.startsWith('Bearer ')) return false;
 
   const token = authHeader.slice(7).trim();
-  return token.length > 0 && token === expected;
+  const expectedBytes = Buffer.from(expected, 'utf8');
+  const tokenBytes = Buffer.from(token, 'utf8');
+  return tokenBytes.length === expectedBytes.length && timingSafeEqual(tokenBytes, expectedBytes);
 }
 
 export async function POST(request: Request) {

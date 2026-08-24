@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { PDFDocument, PageSizes } from 'pdf-lib';
 import { 
   ArrowLeft, Sparkles, Download, 
-  UploadCloud, RefreshCw, CheckCircle2, FileText, 
-  Trash2, Sliders, ShieldCheck 
+  UploadCloud, RefreshCw, CheckCircle2,
+  Trash2, Sliders,
 } from 'lucide-react';
 
 interface SelectedImage {
@@ -44,8 +44,8 @@ export default function ImageToPdfPage() {
           previewUrl,
           isPng: file.type.includes('png'),
         });
-      } catch (err) {
-        console.error('Gagal membaca file foto:', err);
+      } catch (error) {
+        console.error('Gagal membaca file foto:', error);
       }
     }
 
@@ -75,10 +75,10 @@ export default function ImageToPdfPage() {
           } else {
             pdfImage = await pdfDoc.embedJpg(item.buffer);
           }
-        } catch (e) {
+        } catch {
           try {
             pdfImage = await pdfDoc.embedJpg(item.buffer);
-          } catch (e2) {
+          } catch {
             pdfImage = await pdfDoc.embedPng(item.buffer);
           }
         }
@@ -117,8 +117,8 @@ export default function ImageToPdfPage() {
       const pdfBuffer = new Uint8Array(pdfBytes).buffer;
       const blob = new Blob([pdfBuffer], { type: 'application/pdf' });
       setPdfUrl(URL.createObjectURL(blob));
-    } catch (err: any) {
-      console.error(err);
+    } catch (error) {
+      console.error(error);
       alert('Gagal menyusun PDF. Silakan coba lagi.');
     } finally {
       setLoading(false);
@@ -250,6 +250,8 @@ export default function ImageToPdfPage() {
                   className="relative group rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 p-1.5 space-y-1.5"
                 >
                   <div className="aspect-[3/4] rounded-xl overflow-hidden bg-slate-900">
+                    {/* Local object URL is intentionally used for the preview. */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={item.previewUrl}
                       alt="Preview"

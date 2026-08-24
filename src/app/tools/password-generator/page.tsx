@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -87,7 +87,9 @@ export default function PasswordGeneratorPage() {
   const [useNumbers, setUseNumbers] = useState(true);
   const [useSymbols, setUseSymbols] = useState(true);
 
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState(() =>
+    createPassword(20, true, true, true, true),
+  );
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
 
@@ -118,9 +120,6 @@ export default function PasswordGeneratorPage() {
     [length, useLower, useUpper, useNumbers, useSymbols],
   );
 
-  useEffect(() => {
-    generate();
-  }, [generate]);
 
   const handleCopy = async () => {
     if (!password) return;

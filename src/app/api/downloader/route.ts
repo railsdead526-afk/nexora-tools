@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/auth/require-user';
+import { consumeRateLimit, rateLimitResponse } from '@/lib/security/rate-limit';
 import { getAccountSubscriptionStatus } from '@/lib/account/subscription';
 import { consumeToolQuota, refundToolQuota } from '@/lib/usage/quota';
 
@@ -48,13 +49,18 @@ export async function POST(request: Request) {
     if (!isAllowedVideoUrl(url)) return NextResponse.json({ error: 'URL video tidak didukung.' }, { status: 400 });
     if (!RESOLUTIONS.has(resolution)) return NextResponse.json({ error: 'Resolusi tidak valid.' }, { status: 400 });
 
-    // Metadata boleh dicek tanpa mengurangi quota. Download file wajib login dan tercatat server-side.
-    if (action === 'download_file') {
-      const user = await getUserFromRequest(request);
-      if (!user) {
-        return NextResponse.json({ error: 'Login diperlukan untuk mengunduh file.' }, { status: 401 });
-      }
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Login diperlukan untuk menggunakan downloader.' }, { status: 401 });
+    }
 
+    const rate = consumeRateLimit(`downloader:${user.id}`, 20, 60_000);
+    if (!rate.allowed) {
+      return rateLimitResponse(rate.retryAfterSeconds, 'Terlalu banyak permintaan downloader. Coba lagi sebentar.');
+    }
+
+    // Metadata tidak mengurangi quota, tetapi tetap membutuhkan login dan rate limit.
+    if (action === 'download_file') {
       quotaUserId = user.id;
       const subscription = await getAccountSubscriptionStatus(user.id);
 
