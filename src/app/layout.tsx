@@ -2,8 +2,9 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import AppShell from '@/components/AppShell';
 import { UserProvider } from '@/context/UserContext';
+import { APP_URL } from '@/config/site';
 
-const siteUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nexora-tools-p2ml.vercel.app').replace(/\/$/, '');
+const siteUrl = APP_URL;
 
 export const viewport: Viewport = {
   themeColor: '#050505',
