@@ -48,17 +48,15 @@ async function getSubscriptionRow(userId: string): Promise<SubscriptionRow> {
     .eq('user_id', userId)
     .maybeSingle();
 
-  if (error) {
-    throw error;
-  }
-
+  if (error) throw error;
   return (data as SubscriptionRow) ?? null;
 }
 
 export async function getAccountSubscriptionStatus(
   userId: string,
 ): Promise<AccountSubscriptionStatus> {
-  await reconcileSubscriptionExpiry(userId);
+  // Expiry is evaluated from expires_at without mutating the row. A scheduled
+  // call to reconcileSubscriptionExpiry() keeps stored status tidy separately.
   const row = await getSubscriptionRow(userId);
   return mapSubscriptionStatus(row);
 }

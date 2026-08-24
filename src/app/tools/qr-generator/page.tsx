@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import QRCode from 'qrcode';
 import Link from 'next/link';
 import { ArrowLeft, Download } from 'lucide-react';
@@ -27,9 +27,6 @@ export default function QrGeneratorPage() {
     }
   };
 
-  useEffect(() => {
-    generateQR('https://nexora-tools.com', '#000000');
-  }, []);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -81,7 +78,9 @@ export default function QrGeneratorPage() {
         {qrUrl && (
           <div className="flex flex-col items-center gap-4 pt-4 border-t border-slate-800/80">
             <div className="p-3 bg-white rounded-2xl shadow-xl">
-              <img src={qrUrl} alt="QR Code" className="w-48 h-48 rounded-lg" />
+              {/* Local data URL is intentionally used for the generated preview. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={qrUrl} alt="QR Code" className="w-48 h-48 rounded-lg" />
             </div>
 
             <a

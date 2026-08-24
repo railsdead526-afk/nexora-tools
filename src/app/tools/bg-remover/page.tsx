@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useUser } from '@/context/UserContext';
 import CheckoutModal from '@/components/CheckoutModal';
 import { 
@@ -11,6 +12,7 @@ import {
 
 export default function BgRemoverPage() {
   const { isPro, session } = useUser();
+  const router = useRouter();
   const [originalFile, setOriginalFile] = useState<File | null>(null);
   const [originalSrc, setOriginalSrc] = useState<string | null>(null);
   const [finalImageUrl, setFinalImageUrl] = useState<string | null>(null);
@@ -21,11 +23,7 @@ export default function BgRemoverPage() {
   const [quotaLimit, setQuotaLimit] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!session?.access_token) {
-      setQuotaRemaining(null);
-      setQuotaLimit(null);
-      return;
-    }
+    if (!session?.access_token) return;
 
     const controller = new AbortController();
 
@@ -46,7 +44,7 @@ export default function BgRemoverPage() {
       });
 
     return () => controller.abort();
-  }, [session?.access_token]);
+  }, [router, session?.access_token]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.currentTarget;
@@ -56,7 +54,7 @@ export default function BgRemoverPage() {
     if (!session?.access_token) {
       input.value = '';
       alert('Login dulu untuk menggunakan Background Remover.');
-      window.location.href = '/login';
+      router.push('/login');
       return;
     }
 
@@ -209,6 +207,12 @@ export default function BgRemoverPage() {
           </div>
         )}
 
+        {session && quotaRemaining !== null && quotaLimit !== null && (
+          <p className="text-xs font-semibold text-slate-500">
+            Kuota hari ini: {quotaRemaining} dari {quotaLimit} tersisa
+          </p>
+        )}
+
       </div>
 
       <div className="p-6 rounded-3xl bg-slate-900/80 border border-slate-800/90 shadow-2xl space-y-5">
@@ -293,6 +297,8 @@ export default function BgRemoverPage() {
 
           <div className="max-w-[280px] mx-auto rounded-2xl overflow-hidden border border-slate-800 shadow-2xl p-2 bg-slate-950 flex items-center justify-center">
             <div className={`w-full rounded-xl overflow-hidden ${bgColor === 'transparent' ? 'bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:12px_12px]' : ''}`}>
+              {/* Local object URL is intentionally used for the processed preview. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={finalImageUrl}
                 alt="Hasil Cutout"

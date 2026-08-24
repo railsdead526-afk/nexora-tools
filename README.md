@@ -1,14 +1,15 @@
 # Nexora Tools
 
-Nexora Tools adalah aplikasi Next.js untuk kumpulan utilitas web dengan autentikasi Supabase dan sistem Nexora PRO otomatis melalui Midtrans.
+Nexora Tools adalah aplikasi Next.js untuk kumpulan utilitas web dengan autentikasi Supabase dan sistem Nexora PRO berbasis pembayaran manual.
 
 ## Fondasi utama
 
 - Next.js App Router
 - Supabase Auth
 - Supabase Postgres untuk profil, subscription, payment, feedback, dan usage
-- Midtrans Snap untuk pembayaran PRO otomatis
-- Webhook Midtrans untuk aktivasi PRO selama 30 hari
+- Pembayaran manual melalui transfer bank atau e-wallet
+- Upload bukti ke private storage bucket dan review admin
+- Aktivasi PRO selama 30 hari sejak pembayaran disetujui
 - Downloader dipisahkan ke worker eksternal; Vercel hanya menjadi API proxy
 
 ## Setup
@@ -16,7 +17,7 @@ Nexora Tools adalah aplikasi Next.js untuk kumpulan utilitas web dengan autentik
 1. Install dependency:
 
 ```bash
-npm install
+npm ci
 ```
 
 2. Salin environment:
@@ -32,26 +33,31 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
-MIDTRANS_SERVER_KEY=
-MIDTRANS_IS_PRODUCTION=false
-MIDTRANS_MERCHANT_ID=
+MANUAL_PAYMENT_METHOD=Transfer bank / e-wallet manual
+MANUAL_PAYMENT_ACCOUNT_NAME=
+MANUAL_PAYMENT_ACCOUNT_NUMBER=
+MANUAL_PAYMENT_INSTRUCTIONS=Transfer sesuai nominal, simpan bukti pembayaran, lalu unggah bukti pada formulir ini.
+MANUAL_PAYMENT_ADMIN_EMAILS=
+MANUAL_PAYMENT_ADMIN_USER_IDS=
 DOWNLOADER_WORKER_URL=
 DOWNLOADER_WORKER_TOKEN=
+CRON_SECRET=
 ```
 
-4. Jalankan SQL pada folder `supabase/migrations/` secara berurutan di Supabase SQL Editor.
+4. Jalankan SQL pada folder `supabase/migrations/` secara berurutan di Supabase SQL Editor. Migration `010_manual_payment_flow.sql` membuat bucket private `payment-proofs`, RPC order idempotent, dan RPC review/activation. Uji migration pada project Supabase staging terlebih dahulu.
 
 5. Aktifkan Email/Password di Supabase Auth.
 
-6. Buat akun Midtrans dan gunakan Server Key Sandbox untuk pengujian. Aktifkan metode pembayaran yang ingin ditampilkan di checkout Snap.
+6. Pastikan `MANUAL_PAYMENT_ACCOUNT_NUMBER` diisi dengan rekening atau akun e-wallet milik operator. Jangan memasukkan nomor rekening ke source code atau variable `NEXT_PUBLIC_*`.
 
-7. Untuk production, atur Payment Notification URL Midtrans ke:
+7. Isi `MANUAL_PAYMENT_ADMIN_EMAILS` dengan email admin yang dipisahkan koma, atau `MANUAL_PAYMENT_ADMIN_USER_IDS` dengan UUID user admin. Minimal satu allowlist harus diisi sebelum review pembayaran digunakan.
+
+8. Untuk production, atur `NEXT_PUBLIC_APP_URL` ke domain HTTPS dan jalankan rekonsiliasi expiry melalui scheduler yang mengirim:
 
 ```text
-https://DOMAIN-KAMU/api/payments/midtrans/webhook
+POST https://DOMAIN-KAMU/api/internal/subscriptions/reconcile
+Authorization: Bearer CRON_SECRET
 ```
-
-8. Opsional tapi disarankan: set `CRON_SECRET` lalu panggil `POST /api/internal/subscriptions/reconcile` secara terjadwal untuk merapikan subscription yang sudah lewat masa aktif.
 
 9. Jalankan:
 
@@ -68,42 +74,45 @@ Variabel environment disimpan di dua tempat yang berbeda:
 | Lokal (`npm run dev`) | File `.env.local` | Saat develop di komputer sendiri |
 | Production (Vercel) | Vercel → Settings → Environment Variables | Saat build dan runtime di server |
 
-Poin penting:
+File `.env*` sengaja di-gitignore sehingga tidak pernah ter-upload ke repository. **Jangan pernah commit file `.env`** karena berisi `SUPABASE_SERVICE_ROLE_KEY` dan konfigurasi rekening/admin.
 
-- File `.env*` sengaja di-gitignore sehingga tidak pernah ter-upload ke repo. **Jangan pernah commit file `.env`** karena berisi kunci rahasia level server (`SUPABASE_SERVICE_ROLE_KEY`, `MIDTRANS_SERVER_KEY`).
-- Vercel tidak membaca file `.env` dari repo; variabel production wajib diatur di dashboard Vercel (atau lewat CLI).
-- Sinkronkan dari Vercel ke lokal tanpa copy-paste manual:
+Variabel berprefix `NEXT_PUBLIC_` di-bake ke bundle browser saat build. Informasi rekening manual tidak memakai prefix tersebut dan hanya dikirim oleh endpoint pembayaran yang telah diautentikasi.
 
-```bash
-npm i -g vercel
-vercel link                  # sekali saja per project
-vercel env pull .env.local   # tarik semua variabel dari Vercel ke .env.local
-vercel env add NAMA_VARIABEL production   # tambah variabel baru di Vercel dari terminal
-```
-
-- Variabel berprefix `NEXT_PUBLIC_` di-bake ke bundle browser saat build. Jika nilainya diubah di Vercel, jalankan redeploy supaya perubahan terlihat.
-- Setelah penghapusan NexoraAI, variabel `OPENAI_API_KEY`, `ADMIN_EMAILS`, dan `ADMIN_USER_IDS` sudah tidak dipakai dan aman dihapus dari Vercel.
-
-## Alur PRO
+## Alur pembayaran manual
 
 ```text
 User login
   -> pilih Nexora PRO
-  -> backend membuat transaksi Midtrans
-  -> user menyelesaikan checkout Midtrans
-  -> Midtrans mengirim webhook
-  -> signature diverifikasi
-  -> payment ditandai paid
-  -> subscription PRO aktif/ditambah 30 hari
-  -> UI membaca status PRO dari server
+  -> server membuat atau mengembalikan satu order manual terbuka
+  -> user melihat instruksi transfer
+  -> user transfer dan upload JPG/PNG/PDF maksimal 5 MB
+  -> bukti disimpan ke bucket private
+  -> payment menjadi pending_review
+  -> admin membuka /admin/payments dan memeriksa bukti
+  -> admin approve atau reject
+  -> approve mengubah payment menjadi paid dan mengaktifkan PRO 30 hari
+  -> scheduler merekonsiliasi subscription yang sudah expired
 ```
 
-Tidak ada lagi pembayaran DANA manual, upload bukti transfer, atau aktivasi PRO manual.
+Masa PRO **tidak dimulai ketika order dibuat atau ketika bukti di-upload**. Masa aktif dimulai ketika admin menekan approve. Jika akun masih memiliki PRO aktif, 30 hari baru ditambahkan dari expiry yang sedang berjalan; jika sudah expired, 30 hari dimulai dari waktu approval.
+
+Endpoint admin hanya menerima user yang email atau UUID-nya terdaftar pada `MANUAL_PAYMENT_ADMIN_EMAILS` atau `MANUAL_PAYMENT_ADMIN_USER_IDS`. Bukti pembayaran tidak dibuat public; dashboard admin menerima signed URL sementara untuk pemeriksaan.
+
+## Test dan quality gate
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run build
+python3 -m py_compile downloader-worker/app.py
+pip-audit -r downloader-worker/requirements.txt
+```
 
 ## Catatan penghapusan NexoraAI
 
-Fitur NexoraAI (AI chat, riwayat percakapan, RAG knowledge base, dan admin knowledge base) telah dihapus dari aplikasi. Migration `009_remove_nexora_ai.sql` tersedia untuk membersihkan tabel (`ai_conversations`, `ai_messages`, `knowledge_documents`, `knowledge_chunks`), fungsi pendukung, dan storage bucket `knowledge-base` dari database Supabase. Jalankan migration tersebut jika database sudah pernah menjalankan migration 006/007.
+Fitur NexoraAI (AI chat, riwayat percakapan, RAG knowledge base, dan admin knowledge base) telah dihapus dari aplikasi. Migration `009_remove_nexora_ai.sql` membersihkan tabel (`ai_conversations`, `ai_messages`, `knowledge_documents`, `knowledge_chunks`), fungsi pendukung, dan storage bucket `knowledge-base` dari database. Migration ini bersifat destruktif; lakukan backup dan uji restore sebelum menjalankannya pada database nyata.
 
 ## Catatan downloader
 
-Downloader lama yang menjalankan `yt-dlp` langsung dari route Vercel telah dibuang. Route `/api/downloader` sekarang hanya meneruskan request ke worker eksternal yang dikonfigurasi melalui `DOWNLOADER_WORKER_URL`. Jika worker belum tersedia, downloader mengembalikan status nonaktif dengan aman.
+Downloader lama yang menjalankan `yt-dlp` langsung dari route Vercel telah dibuang. Route `/api/downloader` hanya meneruskan request ke worker eksternal yang dikonfigurasi melalui `DOWNLOADER_WORKER_URL`. Semua action harus diautentikasi dan worker memerlukan `WORKER_TOKEN`. Jika worker belum tersedia, downloader mengembalikan status nonaktif dengan aman.

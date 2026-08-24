@@ -1,11 +1,11 @@
-import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/auth/require-user';
-import { createMidtransSnapTransaction } from '@/lib/payments/midtrans';
-import { PRO_PAYMENT_PROVIDER, PRO_PRICE } from '@/lib/payments/config';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '');
+import {
+  getManualPaymentInstructions,
+} from '@/lib/payments/manual';
+import { PRO_PRICE } from '@/lib/payments/config';
+import { consumeRateLimit, rateLimitResponse } from '@/lib/security/rate-limit';
 
 export async function createProPaymentOrder(request: Request) {
   try {
@@ -18,68 +18,46 @@ export async function createProPaymentOrder(request: Request) {
       );
     }
 
-    if (!APP_URL) {
+    const rate = consumeRateLimit(`payment-create:${user.id}`, 3, 10 * 60_000);
+    if (!rate.allowed) {
+      return rateLimitResponse(rate.retryAfterSeconds, 'Terlalu banyak percobaan pembayaran. Coba lagi nanti.');
+    }
+
+    const instructions = getManualPaymentInstructions();
+    if (instructions.accountNumber.includes('ISI_')) {
       return NextResponse.json(
-        { error: 'NEXT_PUBLIC_APP_URL belum dikonfigurasi.' },
-        { status: 500 },
+        { error: 'Rekening pembayaran belum dikonfigurasi oleh admin.' },
+        { status: 503 },
       );
     }
 
     const supabase = createSupabaseAdminClient();
-    const orderId = `NXR-PRO-${Date.now()}-${randomUUID().slice(0, 8)}`;
-
-    const { error: insertError } = await supabase.from('payments').insert({
-      user_id: user.id,
-      provider: PRO_PAYMENT_PROVIDER,
-      provider_order_id: orderId,
-      amount: PRO_PRICE,
-      currency: 'IDR',
-      status: 'pending',
+    const { data, error } = await supabase.rpc('create_manual_payment_order', {
+      p_user_id: user.id,
+      p_amount: PRO_PRICE,
+      p_email: user.email ?? null,
     });
 
-    if (insertError) {
-      throw insertError;
+    if (error) throw error;
+
+    const order = Array.isArray(data) ? data[0] : data;
+    if (!order?.provider_order_id) {
+      throw new Error('Manual payment order tidak dibuat.');
     }
 
-    try {
-      const checkout = await createMidtransSnapTransaction({
-        orderId,
-        amount: PRO_PRICE,
-        email: user.email ?? '',
-        finishUrl: `${APP_URL}/payment/finish?orderId=${encodeURIComponent(orderId)}`,
-        notificationUrl: `${APP_URL}/api/payments/midtrans/webhook`,
-      });
-
-      return NextResponse.json({
-        orderId,
-        amount: PRO_PRICE,
-        status: 'pending',
-        reused: false,
-        checkout,
-      });
-    } catch (error) {
-      await supabase
-        .from('payments')
-        .update({
-          status: 'failed',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('provider_order_id', orderId)
-        .eq('user_id', user.id)
-        .eq('status', 'pending');
-
-      throw error;
-    }
+    return NextResponse.json({
+      orderId: order.provider_order_id,
+      amount: Number(order.amount),
+      currency: order.currency,
+      status: order.status,
+      createdAt: order.created_at,
+      instructions,
+    });
   } catch (error) {
-    console.error('Create Midtrans payment error:', error);
+    console.error('Create manual payment error:', error);
 
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Gagal membuat pembayaran Midtrans.',
-      },
+      { error: 'Gagal menyiapkan pembayaran manual. Coba lagi.' },
       { status: 500 },
     );
   }

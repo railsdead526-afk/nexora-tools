@@ -33,6 +33,7 @@ MAX_CONCURRENT_DOWNLOADS = max(1, int(os.getenv("MAX_CONCURRENT_DOWNLOADS", "1")
 
 TMP_ROOT.mkdir(parents=True, exist_ok=True)
 DOWNLOAD_SEMAPHORE = asyncio.Semaphore(MAX_CONCURRENT_DOWNLOADS)
+DOWNLOAD_TOKENS: dict[str, str] = {}
 
 ALLOWED_RESOLUTIONS = {"360", "720", "1080", "1440", "2160", "mp3"}
 
@@ -130,6 +131,7 @@ def cleanup_stale_files() -> None:
             if now - item.stat().st_mtime > FILE_TTL_SECONDS:
                 if item.is_dir():
                     shutil.rmtree(item, ignore_errors=True)
+                    DOWNLOAD_TOKENS.pop(item.name, None)
                 else:
                     item.unlink(missing_ok=True)
         except OSError:
@@ -439,8 +441,17 @@ async def downloader(
                 payload.isAudio or resolution == "mp3",
             )
 
-        base_url = PUBLIC_BASE_URL or str(request.base_url).rstrip("/")
-        download_url = f"{base_url}/files/{job_dir.name}/{file_path.name}"
+        if not PUBLIC_BASE_URL:
+            shutil.rmtree(job_dir, ignore_errors=True)
+            raise WorkerError(
+                "PUBLIC_BASE_URL belum dikonfigurasi untuk file delivery.",
+                503,
+                "worker_misconfigured",
+            )
+
+        download_token = uuid.uuid4().hex
+        DOWNLOAD_TOKENS[job_dir.name] = download_token
+        download_url = f"{PUBLIC_BASE_URL}/files/{job_dir.name}/{file_path.name}?token={download_token}"
         return {
             "success": True,
             "downloadUrl": download_url,
@@ -475,7 +486,11 @@ async def downloader(
 
 
 @app.get("/files/{job_id}/{filename}")
-def serve_file(job_id: str, filename: str):
+def serve_file(job_id: str, filename: str, request: Request):
+    provided_token = request.query_params.get("token", "")
+    expected_token = DOWNLOAD_TOKENS.get(job_id, "")
+    if not expected_token or not provided_token or not hmac.compare_digest(provided_token, expected_token):
+        raise HTTPException(status_code=404, detail="File tidak ditemukan.")
     if not re.fullmatch(r"[a-f0-9]{32}", job_id):
         raise HTTPException(status_code=404, detail="File tidak ditemukan.")
 

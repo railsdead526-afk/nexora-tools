@@ -13,7 +13,7 @@ export default function FeedbackModal({ isOpen, onClose }: { isOpen: boolean; on
 
   if (!isOpen) return null;
 
-  const ADMIN_WA = '6285707203981';
+  const ADMIN_WA = '6285707203681';
   const userEmail = user?.email || 'Anonim';
 
   const handleSendWA = () => {
@@ -102,10 +102,11 @@ export default function FeedbackModal({ isOpen, onClose }: { isOpen: boolean; on
             />
 
             <div className="space-y-2 pt-1">
+              {!session && <p className="text-center text-[11px] text-slate-500">Login diperlukan untuk menyimpan laporan ke sistem. WhatsApp tetap bisa digunakan tanpa login.</p>}
               <button type="button" onClick={handleSendWA} className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 font-bold text-xs text-white rounded-xl shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all">
                 <MessageCircle className="w-4 h-4" /> Kirim via WhatsApp
               </button>
-              <button type="button" onClick={handleSubmitSystem} disabled={loading} className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-60 font-semibold text-xs text-slate-300 rounded-xl flex items-center justify-center gap-2">
+              <button type="button" onClick={handleSubmitSystem} disabled={loading || !session} className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-60 font-semibold text-xs text-slate-300 rounded-xl flex items-center justify-center gap-2">
                 <Send className="w-3.5 h-3.5" /> {loading ? 'Mengirim...' : 'Simpan Laporan ke Web'}
               </button>
             </div>
