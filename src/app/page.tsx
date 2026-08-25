@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { TOOLS_DATA } from '@/config/tools';
-import { Search, ArrowRight, Sparkles, Video, PenTool, Mail, KeyRound, FileStack, ImageDown, Files, QrCode, CaseSensitive, Download } from 'lucide-react';
+import { Search, ArrowRight, Sparkles, Video, PenTool, Mail, KeyRound, FileStack, ImageDown, Files, QrCode, CaseSensitive, Download, Store } from 'lucide-react';
 
 export default function HomePage() {
   const [search, setSearch] = useState('');
@@ -27,6 +27,7 @@ export default function HomePage() {
       case 'merge': return <Files {...props} />;
       case 'qr': return <QrCode {...props} />;
       case 'case': return <CaseSensitive {...props} />;
+      case 'store': return <Store {...props} />;
       case 'video': return <Video {...props} />;
       default: return <Sparkles {...props} />;
     }
