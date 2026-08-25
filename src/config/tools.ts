@@ -5,7 +5,7 @@ export interface Tool {
   category: 'Image' | 'Text' | 'PDF' | 'Generator' | 'Video';
   slug: string;
   isPremium: boolean;
-  iconName: 'pen' | 'download-video' | 'pdf-img' | 'gmail' | 'key' | 'compress' | 'bg-remove' | 'merge' | 'qr' | 'case';
+  iconName: 'pen' | 'download-video' | 'pdf-img' | 'gmail' | 'key' | 'compress' | 'bg-remove' | 'merge' | 'qr' | 'case' | 'store';
   badge?: string;
 }
 
@@ -113,5 +113,15 @@ export const TOOLS_DATA: Tool[] = [
     isPremium: false,
     iconName: 'key',
     badge: 'NEW',
+  },
+  {
+    id: '12',
+    name: 'Jualan Siap Upload PRO',
+    description: 'Siapkan foto cover, foto deskripsi, safe-zone, dan teks listing dalam satu workspace seller.',
+    category: 'Generator',
+    slug: 'seller-listing',
+    isPremium: true,
+    iconName: 'store',
+    badge: 'PRO',
   },
 ];
